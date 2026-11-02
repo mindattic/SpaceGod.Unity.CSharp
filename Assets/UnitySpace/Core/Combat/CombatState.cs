@@ -121,6 +121,16 @@ namespace Unity.SpaceGod.Core
         /// for hulls or a wide sweep for fighters and missiles, all its arrays at once.</summary>
         public PhaserTuning PhaserTuning;
 
+        ModularHull structure;
+
+        /// <summary>The hull as the modules it is built from and the joints holding them together (U.SPC-T596, see
+        /// <see cref="ModularHull"/>): where it is coming apart, beside <see cref="Hull"/>, which says whether it lives. Laid
+        /// out from <see cref="Spec"/> the first time it is asked for, whole.</summary>
+        public ModularHull Structure => structure ??= ModularHull.For(Spec);
+
+        /// <summary>Whether <see cref="Structure"/> has been laid out yet (a hull nothing has asked about is whole).</summary>
+        public bool HasStructure => structure != null;
+
         /// <param name="hull">The ship class, or null for a defence platform.</param>
         public ShipCombat(CombatSpec spec, ShipClass? hull = null) : this(spec, hull, null) { }
 
@@ -159,6 +169,8 @@ namespace Unity.SpaceGod.Core
             };
             // The same craft stay aboard, as many as the refitted hangars hold (U.SPC-T526).
             c.Hangar = Hangar;
+            // A refit changes what is mounted, not the hull's frame: its structure and any strain in it carry over (U.SPC-T596).
+            if (structure != null && spec.Layout.Length == Spec.Layout.Length && spec.LengthKm == Spec.LengthKm) c.structure = structure;
             CarrierWings.Trim(c, spec.HangarCraft);
             // And the same shuttles, as many as its shuttle berths hold (U.SPC-T590).
             c.ShuttleBay = ShuttleBay;
@@ -367,6 +379,9 @@ namespace Unity.SpaceGod.Core
                 if (!s.Destroyed) s.Restoring = 0;
                 if (s.Kind == SubsystemKind.ShieldGenerator) s.Shield = s.MaxShield;
             }
+            // A full repair rebuilds the hull's structure whole, pieces lost included; a partial one mends what is still on it (U.SPC-T596).
+            if (share >= 1) structure = null;
+            else structure?.Repair(share);
         }
 
         /// <summary>Fully restocks ammo and musters crew/marines back to spec, free. Only for callers (defence

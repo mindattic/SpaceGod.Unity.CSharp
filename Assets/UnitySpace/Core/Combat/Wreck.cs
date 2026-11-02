@@ -50,6 +50,30 @@ namespace Unity.SpaceGod.Core
         /// <summary>What a salvager still finds aboard: cargo the ship was carrying when it died.</summary>
         public readonly List<SalvageStack> Salvage = new List<SalvageStack>();
 
+        /// <summary>
+        /// The pieces the hull broke into when it died (U.SPC-T596, see <see cref="ModularHull.BreakUp"/>): the main hulk
+        /// first, then every piece blown off it, each drifting out through the debris field (<see cref="WreckPiece.OffsetKm"/>)
+        /// with the alloys and parts it breaks down into aboard (<see cref="HullSalvage.Scrap"/>). Empty for a wreck that was
+        /// not a ship with a combat state (a defence platform's, or a bare hull's).
+        /// </summary>
+        public readonly List<WreckPiece> Pieces = new List<WreckPiece>();
+
+        /// <summary>Breaks <see cref="Ship"/>'s hull up into <see cref="Pieces"/>, the same way every time for this wreck.</summary>
+        internal void BreakUp()
+        {
+            Pieces.Clear();
+            var combat = Ship?.Combat;
+            if (combat == null) return;
+            var hull = combat.Structure;
+            var fragments = hull.BreakUp(Id);
+            for (int i = 0; i < fragments.Count; i++)
+            {
+                var piece = new WreckPiece { Index = i, Fragment = fragments[i] };
+                piece.Scrap.AddRange(HullSalvage.Scrap(hull, fragments[i], combat.Spec, combat));
+                Pieces.Add(piece);
+            }
+        }
+
         /// <summary>How fast the debris cloud spreads, in hull lengths per day.</summary>
         public const double DebrisSpreadLengthsPerDay = 0.6;
 
@@ -156,6 +180,7 @@ namespace Unity.SpaceGod.Core
             };
             if (unit.Ship != null && unit.Ship.HasCargo && unit.Ship.CargoTonnes > 0)
                 w.Salvage.Add(new SalvageStack(unit.Ship.CargoGood, unit.Ship.CargoTonnes));
+            w.BreakUp();
             Items.Add(w);
             return w;
         }
@@ -181,6 +206,7 @@ namespace Unity.SpaceGod.Core
                 LifetimeDays = lifetimeDays > 0 ? lifetimeDays : DefaultLifetimeDays,
             };
             if (ship.HasCargo && ship.CargoTonnes > 0) w.Salvage.Add(new SalvageStack(ship.CargoGood, ship.CargoTonnes));
+            w.BreakUp();
             Items.Add(w);
             return w;
         }
