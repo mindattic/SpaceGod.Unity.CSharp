@@ -163,6 +163,7 @@ namespace Unity.SpaceGod.Core
             War.Update(jd);
             LaneUpkeep?.Update(jd);
             Sensors?.Update(jd);
+            Infrastructure?.UpdateSatellites(jd);
             Shocks.Update(jd);
             Law.Update(jd);
             Outlaws.Update(jd);

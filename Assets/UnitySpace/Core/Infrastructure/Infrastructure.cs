@@ -130,7 +130,19 @@ namespace Unity.SpaceGod.Core
             }
         }
 
-        /// <summary>Every satellite's offset from its body (km, ecliptic) at a date.</summary>
+        /// <summary>
+        /// The satellites flying on a state of their own (U.SPC-T448), by index: one the player has taken, or one its AI is
+        /// still flying back to its slot. Every other satellite is exactly in its slot.
+        /// </summary>
+        public readonly Dictionary<int, Satellite> Flying = new Dictionary<int, Satellite>();
+
+        /// <summary>A satellite's name: the constellation's and its number in it.</summary>
+        public string NameOf(int index) => Name + " " + (index + 1);
+
+        /// <summary>
+        /// Every satellite's offset from its body (km, ecliptic) at a date: its slot, or for one flying on its own
+        /// (<see cref="Flying"/>) where its own state has it.
+        /// </summary>
         public void Offsets(BodyDefinition body, double jd, DVec3[] output)
         {
             var axis = body.SpinAxis;
@@ -141,22 +153,92 @@ namespace Unity.SpaceGod.Core
             foreach (var s in Shells)
             {
                 double rate = Kepler.CircularRate(body.Gm, s.RadiusKm);
-                double inc = s.IncDeg * Astro.Deg2Rad;
                 for (int p = 0; p < s.Planes; p++)
                 {
-                    double node = Astro.TwoPi * p / s.Planes + shellIndex * 0.37;
-                    var n = node0 * Math.Cos(node) + east0 * Math.Sin(node);
-                    var inPlane = DVec3.Cross(axis, n);
-                    var v = inPlane * Math.Cos(inc) + axis * Math.Sin(inc);
+                    PlaneAxes(axis, node0, east0, s, shellIndex, p, out var n, out var v);
                     for (int k = 0; k < s.PerPlane && i < output.Length; k++, i++)
                     {
-                        double phase = Astro.TwoPi * (k + 0.5 * (p % 2)) / s.PerPlane + rate * (jd - Astro.J2000);
+                        double phase = Phase(s, p, k, rate, jd);
                         output[i] = (n * Math.Cos(phase) + v * Math.Sin(phase)) * s.RadiusKm;
                     }
                 }
                 shellIndex++;
             }
+            foreach (var f in Flying)
+                if (f.Key >= 0 && f.Key < output.Length) output[f.Key] = f.Value.OffsetKm;
         }
+
+        /// <summary>
+        /// Where satellite <paramref name="index"/>'s slot is at a date (km from the body's centre) and how fast it moves
+        /// along it (km/s), both ecliptic: the same circular orbits <see cref="Offsets"/> places the cloud on. False (and
+        /// zeros) for an index past the last satellite.
+        /// </summary>
+        public bool SlotAt(BodyDefinition body, int index, double jd, out DVec3 offsetKm, out DVec3 velocityKmS)
+        {
+            offsetKm = velocityKmS = DVec3.Zero;
+            if (index < 0) return false;
+            var axis = body.SpinAxis;
+            var node0 = BodyOrientation.EquatorNode(axis);
+            var east0 = DVec3.Cross(axis, node0);
+            int first = 0, shellIndex = 0;
+            foreach (var s in Shells)
+            {
+                int count = s.Planes * s.PerPlane;
+                if (index < first + count)
+                {
+                    int local = index - first, p = local / s.PerPlane, k = local % s.PerPlane;
+                    double rate = Kepler.CircularRate(body.Gm, s.RadiusKm);
+                    PlaneAxes(axis, node0, east0, s, shellIndex, p, out var n, out var v);
+                    double phase = Phase(s, p, k, rate, jd);
+                    double c = Math.Cos(phase), sn = Math.Sin(phase);
+                    offsetKm = (n * c + v * sn) * s.RadiusKm;
+                    velocityKmS = (v * c - n * sn) * (s.RadiusKm * rate / Astro.SecondsPerDay);
+                    return true;
+                }
+                first += count;
+                shellIndex++;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Satellite <paramref name="index"/> flying on its own state from <paramref name="jd"/>, starting from its slot at
+        /// its working attitude (or the one already flying).
+        /// </summary>
+        public Satellite Detach(BodyDefinition body, int index, double jd)
+        {
+            if (Flying.TryGetValue(index, out var sat)) return sat;
+            sat = new Satellite(this, body, index, jd);
+            Flying[index] = sat;
+            return sat;
+        }
+
+        /// <summary>Steps every satellite flying on its own on to <paramref name="jd"/>, letting go of those back on station.</summary>
+        public void Step(BodyDefinition body, double jd)
+        {
+            if (Flying.Count == 0) return;
+            List<int> settled = null;
+            foreach (var f in Flying)
+            {
+                f.Value.AdvanceTo(jd);
+                if (f.Value.OnStation && !f.Value.Held) (settled ??= new List<int>()).Add(f.Key);
+            }
+            if (settled != null)
+                foreach (var k in settled)
+                    Flying.Remove(k);
+        }
+
+        static void PlaneAxes(DVec3 axis, DVec3 node0, DVec3 east0, Shell s, int shellIndex, int p, out DVec3 n, out DVec3 v)
+        {
+            double inc = s.IncDeg * Astro.Deg2Rad;
+            double node = Astro.TwoPi * p / s.Planes + shellIndex * 0.37;
+            n = node0 * Math.Cos(node) + east0 * Math.Sin(node);
+            var inPlane = DVec3.Cross(axis, n);
+            v = inPlane * Math.Cos(inc) + axis * Math.Sin(inc);
+        }
+
+        static double Phase(Shell s, int p, int k, double rate, double jd) =>
+            Astro.TwoPi * (k + 0.5 * (p % 2)) / s.PerPlane + rate * (jd - Astro.J2000);
     }
 
     /// <summary>
@@ -304,6 +386,16 @@ namespace Unity.SpaceGod.Core
         {
             this.catalog = catalog;
             this.ephemeris = ephemeris;
+        }
+
+        /// <summary>
+        /// Steps every constellation satellite flying on its own (U.SPC-T448: taken by the player, or its AI bringing it
+        /// back to its slot) on to <paramref name="jd"/>.
+        /// </summary>
+        public void UpdateSatellites(double jd)
+        {
+            foreach (var c in Constellations)
+                if (c.Flying.Count > 0) c.Step(catalog[c.Body], jd);
         }
 
         public OrbitalStructure YardOf(Settlement s)
