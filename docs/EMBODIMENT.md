@@ -83,13 +83,26 @@ Nothing pauses and nothing loads. Taking a seat drops the clock to real time, wh
 not a pause. The camera glides from seat to seat. Every seat not held stays under its own AI the
 whole time. When the player takes nothing, the galaxy runs fully on its own.
 
+## The picker (U.SPC-T446)
+
+F9 opens the take-charge picker, a list to click into. It comes from `Embodiables.Pickable(world, battle, onUnit,
+onShip, nearby)` and never from a list of its own, so a kind registered in `Embodiables` shows up there without
+the picker being touched. The list is in this order:
+
+1. The thing in hand. That is the seat held, or else the hull being flown, or else the selection. Its own seat comes
+   first (a helm or a cockpit), then each gun mount on it, indented under it.
+2. Every other seat in the fight in view.
+3. The helms of the twelve ships nearest the camera that are not in a fight.
+
+Each seat appears once, and only if it can be taken now. Clicking one takes it through the same path as ' ; and /.
+The seat held is always handed back to its AI first, through `EmbodimentSession.Switch` or, for a helm, the pilot
+loop. The picker then closes, so the mouse goes back to the stick. The clock never stops while the picker is open.
+At the controls, its Back to command button does what P does.
+
 ## What follows (filed as `part-of U.SPC-T18`)
 
 * U.SPC-T445, a Runtime turret seat: pick a mount on the selected or flown hull, a turret camera at the mount, and
   aim and fire from it.
-* U.SPC-T446, a picker and switch UI: list embodiables near the camera or on the selected thing (from
-  `Embodiables`), and jump between seats. U.SPC-T422 has added keyboard switching from the strategy view
-  without pausing (above). A visible list to pick from is still to come.
 * U.SPC-T447, stations as embodiables: a station hull with its own pose. It does not move, but it can turn its
   guns and launch its craft.
 * U.SPC-T448, satellites as embodiables: an orbiting body you can turn and point (sensors, relays), with

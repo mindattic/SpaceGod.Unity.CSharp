@@ -76,6 +76,35 @@ namespace Unity.SpaceGod.Core.Tests
             Assert.That(seats.OfType<FighterSeat>().Count(s => s.Name.Contains("bomber")), Is.EqualTo(aloft.Count(u => u.Fighter.Bomber)));
         }
 
+        /// <summary>The picker's list (U.SPC-T446): the hull in hand and its guns first, then the fight, then nearby helms,
+        /// each once, all from Embodiables; picking from it hands the seat held back to its AI.</summary>
+        [Test]
+        public void ThePickerListsTheHullInHandAndItsGunsThenTheFightThenNearbyHelmsEachOnce()
+        {
+            var (w, ship) = WorldWarship();
+            var (b, carrier, _, craft) = CarrierFight(duel: false);
+            b.AddShip(ship, 0, new DVec3(14, 3, 0), -DVec3.UnitX);
+            var idle = w.Fleet.Ships.First(s => s != ship && !s.Destroyed && !s.Derelict && s.Battle == null);
+            var list = Embodiables.Pickable(w, b, onShip: ship, nearby: new[] { idle, ship });
+            var guns = Embodiables.TurretsOn(w, ship);
+            Assert.That(guns, Is.Not.Empty);
+            Assert.That(list[0], Is.EqualTo(Embodiables.HelmOf(w, ship)), "the hull in hand's own helm first");
+            Assert.That(list.Skip(1).Take(guns.Count), Is.EqualTo(guns), "then its gun mounts");
+            Assert.That(list, Does.Contain(Embodiables.FighterOf(b, craft)), "then every seat in the fight");
+            Assert.That(list.Last(), Is.EqualTo(Embodiables.HelmOf(w, idle)), "then the helms near the camera");
+            Assert.That(list.Distinct().Count(), Is.EqualTo(list.Count), "each seat once");
+            Assert.That(list.All(e => e.CanEmbody), Is.True);
+
+            var session = new EmbodimentSession();
+            var gun = guns[0];
+            Assert.That(session.Switch(gun), Is.True);
+            var fighter = list.OfType<FighterSeat>().First();
+            Assert.That(session.Switch(fighter), Is.True);
+            Assert.That(gun.Embodied, Is.False, "the seat left goes back to its AI");
+            Assert.That(fighter.Embodied, Is.True);
+            session.Release();
+        }
+
         [Test]
         public void ATakenFighterTurnsAtItsOwnRateTowardTheStickAndHoldsTheThrottle()
         {

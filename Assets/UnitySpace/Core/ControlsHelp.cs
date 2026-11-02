@@ -134,6 +134,7 @@ namespace Unity.SpaceGod.Core
                 L("F10", "your fleet: buy hulls, warehouses, station shares and claims; hire captains and give them standing orders"),
                 L("'  ;", "take charge, any time: jump into the next seat in the fight in view (a ship's helm, a fighter or bomber)"),
                 L("/", "man the next gun on the hull"),
+                L("F9", "take-charge picker: every seat on the hull in hand and around the camera (helms, fighters, gun mounts), click one to jump in"),
                 More("in a fighter: mouse aims, W/S throttle, left mouse guns, right mouse torpedoes"),
                 L("P", "hands the seat back to its AI and returns you to command")),
 

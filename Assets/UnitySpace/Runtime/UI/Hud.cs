@@ -187,6 +187,7 @@ namespace Unity.SpaceGod.UI
             if (app.ShowContracts) DrawContracts();
             if (app.ShowFleet) DrawFleet();
             if (app.ShowTrade) DrawTradeDesk();
+            if (app.ShowPicker) DrawPicker();
             if (app.ShowSaves) DrawSaves();
             DrawToast();
         }
@@ -3598,6 +3599,62 @@ namespace Unity.SpaceGod.UI
             var r = new Rect((Screen.width - w) * 0.5f, Screen.height - 96, w, 34);
             GUI.Box(r, GUIContent.none, panel);
             GUI.Label(new Rect(r.x + 20, r.y + 7, w, 22), content, toast);
+        }
+
+        // ---------------------------------------------------------------- the take-charge picker (U.SPC-T446)
+
+        Vector2 pickerScroll;
+
+        /// <summary>
+        /// The take-charge picker (F9): every seat the player could take now, from <see cref="UnitySpaceApp.PickerSeats"/>
+        /// (the hull in hand's own seat and its gun mounts, indented under it, then the fight in view, then the ships near
+        /// the camera), each with what it is and whose. Clicking one jumps into it, the seat held handed back to its AI
+        /// first; the clock never stops while it is open.
+        /// </summary>
+        void DrawPicker()
+        {
+            var seats = app.PickerSeats();
+            var held = app.HeldSeat;
+            const float w = 560, rowH = 22;
+            float listH = Mathf.Clamp(seats.Count * rowH, rowH, 360);
+            var r = Panel(new Rect((Screen.width - w) * 0.5f, 110, w, 64 + listH + 24));
+            GUI.Label(new Rect(r.x + 12, r.y + 6, w - 24, 22), "TAKE CHARGE  ·  " + seats.Count + (seats.Count == 1 ? " seat" : " seats"), title);
+            var old = GUI.contentColor;
+            GUI.contentColor = Dim;
+            GUI.Label(new Rect(r.x + 12, r.y + 30, w - 24, 18),
+                held != null ? "Holding " + held.Name + ": pick another seat and it goes back to its AI." : "Select a hull for its guns, or look at a fight.", small);
+            var view = new Rect(r.x + 8, r.y + 52, w - 16, listH);
+            var content = new Rect(0, 0, w - 36, Mathf.Max(seats.Count, 1) * rowH);
+            pickerScroll = GUI.BeginScrollView(view, pickerScroll, content);
+            if (seats.Count == 0)
+            {
+                GUI.contentColor = Dim;
+                GUI.Label(new Rect(4, 2, w - 40, rowH), "Nothing to take charge of here.", small);
+            }
+            IEmbodiable chosen = null;
+            for (int i = 0; i < seats.Count; i++)
+            {
+                var s = seats[i];
+                bool isHeld = Equals(s, held);
+                bool mounted = s.Host != null && seats.Contains(s.Host);
+                var rr = new Rect(0, i * rowH, w - 36, rowH - 2);
+                GUI.contentColor = Color.white;
+                if (GUI.Button(rr, GUIContent.none, isHeld ? rowSelected : row)) chosen = s;
+                var fc = s.Faction != null ? new Color(s.Faction.Color.R, s.Faction.Color.G, s.Faction.Color.B) : Dim;
+                GUI.contentColor = fc;
+                float x = mounted ? 22 : 6;
+                GUI.Label(new Rect(x, rr.y + 2, 70, 18), s.Kind.ToString().ToUpperInvariant(), small);
+                GUI.contentColor = isHeld ? DeckLinedUpColor : Color.white;
+                GUI.Label(new Rect(x + 72, rr.y + 2, 300 - x, 18), s.Name + (isHeld ? "  (held)" : ""), small);
+                GUI.contentColor = Dim;
+                GUI.Label(new Rect(380, rr.y + 2, w - 420, 18), s.Faction?.Name ?? "", small);
+            }
+            GUI.EndScrollView();
+            GUI.contentColor = Dim;
+            GUI.Label(new Rect(r.x + 12, r.yMax - 22, 300, 18), "Click a seat to take it.   F9 or Esc to close", small);
+            GUI.contentColor = old;
+            if (app.AtControls && GUI.Button(new Rect(r.xMax - 172, r.yMax - 24, 160, 20), "Back to command (P)", button)) app.PickCommand();
+            if (chosen != null) app.PickSeat(chosen);
         }
 
         static readonly Color DeckLinedUpColor = new Color(0.45f, 1f, 0.55f, 0.95f);

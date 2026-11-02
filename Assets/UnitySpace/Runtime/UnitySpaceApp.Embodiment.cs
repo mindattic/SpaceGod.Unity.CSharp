@@ -238,6 +238,99 @@ namespace Unity.SpaceGod
             TakeSeat(Embodiables.Cycle(guns, seat.Current, 1));
         }
 
+        // ---------------------------------------------------------------- the picker (U.SPC-T446)
+
+        /// <summary>The take-charge picker (F9): every seat on the thing in hand and around the camera, to click into.</summary>
+        public bool ShowPicker { get; set; }
+
+        /// <summary>How many ships near the camera, outside any fight, the picker offers the helms of.</summary>
+        const int PickerNearbyShips = 12;
+
+        List<IEmbodiable> pickerSeats = new List<IEmbodiable>();
+        float pickerBuiltAt = -10f;
+
+        void TogglePicker()
+        {
+            ShowPicker = !ShowPicker;
+            pickerBuiltAt = -10f;
+        }
+
+        /// <summary>What the player holds now, a helm or any other seat, or null in command.</summary>
+        public IEmbodiable HeldSeat => seat.Current ?? (IsPiloting && Piloted.Ship != null ? Embodiables.HelmOf(World, Piloted.Ship) : null);
+
+        /// <summary>
+        /// The picker's list (U.SPC-T446), rebuilt a few times a second from <see cref="Embodiables.Pickable"/>: the seats on
+        /// the hull held (or flown, or selected) and its gun mounts, then every seat in the fight in view, then the helms of
+        /// the ships nearest the camera. Never a list of its own: a new kind registered in <see cref="Embodiables"/> shows here.
+        /// </summary>
+        public List<IEmbodiable> PickerSeats()
+        {
+            if (Time.unscaledTime - pickerBuiltAt < 0.25f) return pickerSeats;
+            pickerBuiltAt = Time.unscaledTime;
+            var battle = BattleInView();
+            BattleUnit onUnit = null;
+            Ship onShip = null;
+            switch (seat.Current)
+            {
+                case MountedTurret t:
+                    onUnit = t.Unit;
+                    battle = t.Battle;
+                    break;
+                case FighterSeat f:
+                    onUnit = f.Unit;
+                    battle = f.Battle;
+                    break;
+                default:
+                    if (IsPiloting) onShip = Piloted.Ship;
+                    else if (Selected.IsShip) onShip = Selected.Ship;
+                    else if (Selected.IsUnit && !Selected.Battle.Over)
+                    {
+                        onUnit = Selected.Unit;
+                        battle = Selected.Battle;
+                    }
+                    break;
+            }
+            pickerSeats = Embodiables.Pickable(World, battle, onUnit, onShip, ShipsNearCamera(PickerNearbyShips));
+            return pickerSeats;
+        }
+
+        /// <summary>The <paramref name="count"/> ships in view of the system nearest the camera and not in a fight (those
+        /// come with their fight), nearest first.</summary>
+        List<Ship> ShipsNearCamera(int count)
+        {
+            var near = new List<(double d, Ship s)>();
+            var eye = SpaceCamera.ScenePosition;
+            foreach (var s in Fleet.Ships)
+            {
+                if (s.Destroyed || s.Battle != null || s.Phase == ShipPhase.Landed) continue;
+                near.Add(((TargetScene(Target.OfShip(s)) - eye).Length, s));
+            }
+            near.Sort((a, b) => a.d.CompareTo(b.d));
+            var list = new List<Ship>();
+            for (int i = 0; i < near.Count && i < count; i++) list.Add(near[i].s);
+            return list;
+        }
+
+        /// <summary>
+        /// A seat clicked in the picker: taken through <see cref="TakeSeat"/>, which always hands the seat held back to its
+        /// AI first (<see cref="EmbodimentSession.Switch"/>, or the pilot loop for a helm). The picker closes so the mouse
+        /// goes back to the stick.
+        /// </summary>
+        public void PickSeat(IEmbodiable next)
+        {
+            if (next == null) return;
+            ShowPicker = false;
+            if (Equals(next, HeldSeat)) return;
+            TakeSeat(next);
+        }
+
+        /// <summary>The picker's Back to command button: what P does at the controls.</summary>
+        public void PickCommand()
+        {
+            ShowPicker = false;
+            if (AtControls) ReturnToCommand();
+        }
+
         /// <summary>
         /// One frame at a non-helm seat: the mouse swings the stick (and the view after it), W/S work a craft's throttle,
         /// the triggers go to what is held, and a seat that is lost (shot down, the fight over) returns the player to

@@ -113,6 +113,9 @@ namespace Unity.SpaceGod.Input
         /// goes back up to the helm.</summary>
         public bool ManGun;
 
+        /// <summary>F9 (U.SPC-T446): the take-charge picker, every seat on the thing in hand and around the camera to click into.</summary>
+        public bool TogglePicker;
+
         /// <summary>While piloting in a fight (U.SPC-T488): Insert retunes the hull's phaser arrays, a narrow lance for hulls or a wide sweep for fighters and missiles.</summary>
         public bool TunePhasers;
 
@@ -259,6 +262,7 @@ namespace Unity.SpaceGod.Input
             Pilot = kb.pKey.wasPressedThisFrame;
             CycleSeat = kb.quoteKey.wasPressedThisFrame ? 1 : kb.semicolonKey.wasPressedThisFrame ? -1 : 0;
             ManGun = kb.slashKey.wasPressedThisFrame;
+            TogglePicker = kb.f9Key.wasPressedThisFrame;
             bool shifted = kb.leftShiftKey.isPressed || kb.rightShiftKey.isPressed;
             TunePhasers = kb.insertKey.wasPressedThisFrame && !shifted;
             ToggleBoarding = kb.bKey.wasPressedThisFrame;
@@ -305,6 +309,7 @@ namespace Unity.SpaceGod.Input
             CycleSeat = 0;
             ThrottleStep = 0;
             ManGun = false;
+            TogglePicker = false;
             TunePhasers = false;
             ToggleBoarding = false;
             ToggleRunHot = false;

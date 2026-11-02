@@ -250,7 +250,7 @@ namespace Unity.SpaceGod
 
         /// <summary>A screen the player clicks through is open (market, cargo hold, spawn grid): the cursor is
         /// freed for it, so the mouse stops steering (and firing) the piloted hull meanwhile.</summary>
-        bool ClickPanelOpen => !ScreenCleared && (ShowSpawn || ShowSaves || ShowGalaxyMap || ShowHelp || (ShowHud && (ShowMarket || ShowCargo || ShowNews || ShowOutfit || ShowBounties || ShowContracts || ShowFleet || ShowTrade))); // a cleared screen (F11) shows none of them; market, cargo, outfitting, bounties, contracts and news are HUD panels, hidden with it
+        bool ClickPanelOpen => !ScreenCleared && (ShowSpawn || ShowSaves || ShowGalaxyMap || ShowHelp || (ShowHud && (ShowMarket || ShowCargo || ShowNews || ShowOutfit || ShowBounties || ShowContracts || ShowFleet || ShowTrade || ShowPicker))); // a cleared screen (F11) shows none of them; market, cargo, outfitting, bounties, contracts and news are HUD panels, hidden with it
         public bool ShowLanes { get; set; } = true;
 
         /// <summary>Satellite constellations (thousands of points round Earth); off by default, K toggles.</summary>
@@ -786,7 +786,7 @@ namespace Unity.SpaceGod
         /// <summary>The panels and full screens open now, one bit each: what a cleared screen (F11) watches for newly opened.</summary>
         int OpenScreens() =>
             (ShowSpawn ? 1 : 0) | (ShowSaves ? 2 : 0) | (ShowGalaxyMap ? 4 : 0) | (ShowMarket ? 8 : 0) | (ShowCargo ? 16 : 0) | (ShowNews ? 32 : 0) |
-            (ShowOutfit ? 64 : 0) | (ShowBounties ? 128 : 0) | (ShowContracts ? 256 : 0) | (ShowFleet ? 512 : 0) | (ShowTrade ? 1024 : 0) | (ShowHelp ? 2048 : 0);
+            (ShowOutfit ? 64 : 0) | (ShowBounties ? 128 : 0) | (ShowContracts ? 256 : 0) | (ShowFleet ? 512 : 0) | (ShowTrade ? 1024 : 0) | (ShowHelp ? 2048 : 0) | (ShowPicker ? 4096 : 0);
 
         void HandleCommands()
         {
@@ -850,6 +850,7 @@ namespace Unity.SpaceGod
             // Take charge of anything, any time (U.SPC-T422): the next seat in the fight in view, or the next gun on the hull.
             if (i.CycleSeat != 0) CycleSeat(i.CycleSeat);
             if (i.ManGun) ManNextGun();
+            if (i.TogglePicker) TogglePicker();
         }
 
         /// <summary>Speeds time up a step (the key and the top bar's button alike), unless the ship at the helm is being
@@ -870,7 +871,7 @@ namespace Unity.SpaceGod
             switch (EscapeKey.Route(ClickPanelOpen, AtControls, SpaceCamera.Mode != SpaceCamera.CameraMode.Free, !Selected.IsNone))
             {
                 case EscapeAction.ClosePanels:
-                    ShowSpawn = ShowSaves = ShowMarket = ShowCargo = ShowNews = ShowOutfit = ShowBounties = ShowContracts = ShowFleet = ShowTrade = ShowGalaxyMap = ShowHelp = false;
+                    ShowSpawn = ShowSaves = ShowMarket = ShowCargo = ShowNews = ShowOutfit = ShowBounties = ShowContracts = ShowFleet = ShowTrade = ShowGalaxyMap = ShowHelp = ShowPicker = false;
                     break;
                 case EscapeAction.LeaveFocus:
                     SpaceCamera.ExitFocus();
