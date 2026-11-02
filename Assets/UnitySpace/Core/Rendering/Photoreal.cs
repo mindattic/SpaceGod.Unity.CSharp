@@ -36,7 +36,7 @@ namespace Unity.SpaceGod.Core
     /// </summary>
     public struct PhotorealOptions : IEquatable<PhotorealOptions>
     {
-        /// <summary>A physically based sky and atmosphere for the planet the camera is at.</summary>
+        /// <summary>A physically based sky and atmosphere for the planet a docking-ring descent the camera rides is coming down to (U.SPC-T452).</summary>
         public bool PhysicalSky;
 
         /// <summary>Volumetric light (sunbeams, haze lit by the star) inside a planet's atmosphere.</summary>
@@ -112,7 +112,9 @@ namespace Unity.SpaceGod.Core
     /// <summary>
     /// Which planet's atmosphere the physically based sky draws, and how (U.SPC-T430). A sky models one planet, so it
     /// follows the atmosphere the camera is in or closest to (by height over the planet's size), within
-    /// <see cref="ReachRadii"/> of the surface; farther out the hand-drawn atmosphere rims carry it alone.
+    /// <see cref="ReachRadii"/> of the surface; farther out the hand-drawn atmosphere rims carry it alone. It is drawn
+    /// only during docking-ring atmospheric entry (<see cref="EntryBody"/>, U.SPC-T452): a narrow experiment behind
+    /// the pipeline abstraction, not a renderer migration.
     /// </summary>
     public static class PlanetAtmospheres
     {
@@ -183,5 +185,20 @@ namespace Unity.SpaceGod.Core
         }
 
         static double Clamp01(float v) => v < 0 ? 0 : v > 1 ? 1 : v;
+
+        /// <summary>
+        /// The one planet whose physically based sky may draw (U.SPC-T452), or -1 for none: the ringed world of the ship
+        /// the camera rides (<paramref name="ridden"/>, followed or flown) while that ship, or the ship it escorts, is
+        /// coming down through a docking ring, landed at its city, or climbing back to the ring. That descent is the one
+        /// sequence in which the player sits inside a single atmosphere, which is what HDRP's sky models; everywhere
+        /// else (orbit, open space, other planets seen from afar) the shaders' own per-planet atmosphere rims carry the
+        /// air, so the experiment never touches the rest of the renderer (docs/RENDER_PIPELINES_SPIKE.md).
+        /// </summary>
+        public static int EntryBody(Ship ridden)
+        {
+            if (ridden == null || ridden.Destroyed) return -1;
+            var c = ridden.Controller;
+            return c != null && !c.Destroyed && c.Ring != null && c.Planetside ? c.Ring.Body : -1;
+        }
     }
 }

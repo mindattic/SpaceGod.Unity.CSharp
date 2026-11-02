@@ -40,12 +40,13 @@ namespace Unity.SpaceGod.Rendering
 
         public static readonly ToggleSetting PhysicalSky = new ToggleSetting("render.hdrp.sky", SettingGroups.RenderPipeline,
             "Physically based sky (HDRP)", PhotorealOptions.Default.PhysicalSky,
-            "Near a planet with air, HDRP draws its atmosphere as light really scatters in it: blue overhead, red at sunset, the haze " +
-            "on the limb seen from orbit. Ignored on URP.", "atmosphere scattering sky rayleigh hdrp").Applying(_ => Apply());
+            "While the ship you fly or follow comes down through a docking ring, sits at its city or climbs back, HDRP draws that " +
+            "world's atmosphere as light really scatters in it: blue overhead, red at sunset, the haze below. Everywhere else the " +
+            "planets keep their own atmosphere rims. Ignored on URP.", "atmosphere scattering sky rayleigh docking ring descent entry hdrp").Applying(_ => Apply());
 
         public static readonly ToggleSetting Volumetrics = new ToggleSetting("render.hdrp.volumetrics", SettingGroups.RenderPipeline,
             "Volumetric light (HDRP)", PhotorealOptions.Default.Volumetrics,
-            "Inside a planet's atmosphere the air itself catches the star's light, in shafts and haze. Costs GPU time. Ignored on URP.",
+            "During a docking-ring descent the air itself catches the star's light, in shafts and haze. Costs GPU time. Ignored on URP.",
             "fog god rays sunbeams haze volumetric hdrp").Applying(_ => Apply());
 
         public static readonly ChoiceSetting Exposure = new ChoiceSetting("render.hdrp.exposure", SettingGroups.RenderPipeline,

@@ -2598,38 +2598,34 @@ namespace Unity.SpaceGod
         bool atmosphereSet;
 
         /// <summary>
-        /// Tells a pipeline that draws a physically based sky (HDRP) which planet's air the camera is in or nearest
-        /// (U.SPC-T430): the one closest by height over its size, within a few radii of its surface. A pipeline
-        /// without such a sky is not asked; its planets keep only the shaders' own atmosphere rims.
+        /// Tells a pipeline that draws a physically based sky (HDRP) which planet's air the camera is in (U.SPC-T430),
+        /// scoped to docking-ring atmospheric entry only (U.SPC-T452): the sky draws while the ship the camera rides
+        /// (flown, or followed) is coming down through a ring, landed at its city or climbing back, for that ringed world
+        /// alone, and is cleared everywhere else, where the shaders' own atmosphere rims draw every planet's air. A
+        /// pipeline without such a sky is not asked.
         /// </summary>
         void UpdateAtmosphere()
         {
             var backend = RenderBackend.Active;
             if (!backend.Profile.Offers(PipelineFeatures.PhysicalSky)) return;
-            int best = -1;
-            double bestScore = double.PositiveInfinity, bestDistance = 0;
-            for (int i = 0; i < Catalog.Count; i++)
-            {
-                var b = Catalog[i];
-                if (!b.IsVisible) continue;
-                double d = (SpaceCamera.ScenePosition - bodyScene[i]).Length;
-                double score = PlanetAtmospheres.Closeness(d, bodyRadius[i], b.AtmosphereStrength, b.IsStar);
-                if (score < bestScore)
-                {
-                    bestScore = score;
-                    best = i;
-                    bestDistance = d;
-                }
-            }
-            if (best < 0)
+            var ridden = IsPiloting ? Piloted.Ship : SpaceCamera.FocusTarget.IsShip ? SpaceCamera.FocusTarget.Ship : null;
+            int body = PlanetAtmospheres.EntryBody(ridden);
+            if (body < 0 || body >= Catalog.Count || !Catalog[body].IsVisible)
             {
                 ClearAtmosphere();
                 return;
             }
-            var body = Catalog[best];
-            var shell = PlanetAtmospheres.Describe(best, bodyRadius[best], bestDistance, body.AtmosphereColor.R, body.AtmosphereColor.G,
-                body.AtmosphereColor.B, body.AtmosphereStrength);
-            backend.SetAtmosphere(UnityCamera, shell, Relative(bodyScene[best]));
+            var b = Catalog[body];
+            double distance = (SpaceCamera.ScenePosition - bodyScene[body]).Length;
+            if (double.IsPositiveInfinity(PlanetAtmospheres.Closeness(distance, bodyRadius[body], b.AtmosphereStrength, b.IsStar)))
+            {
+                // An airless world, or the camera pulled far back from the descent: the rims carry it.
+                ClearAtmosphere();
+                return;
+            }
+            var shell = PlanetAtmospheres.Describe(body, bodyRadius[body], distance, b.AtmosphereColor.R, b.AtmosphereColor.G,
+                b.AtmosphereColor.B, b.AtmosphereStrength);
+            backend.SetAtmosphere(UnityCamera, shell, Relative(bodyScene[body]));
             atmosphereSet = true;
         }
 

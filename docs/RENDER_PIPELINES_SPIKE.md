@@ -188,5 +188,14 @@ low-priority experiment, deliberately scoped away from "migrate the renderer."
   for docking-ring atmospheric entry only, gated behind the pipeline-abstraction layer, explicitly
   not a renderer migration.
 
+**Follow-up (U.SPC-T452).** The HDRP path that U.SPC-T430 later built drew its physically based sky for whichever
+planet the camera was nearest, anywhere in a system. It is now scoped to docking-ring atmospheric entry alone, behind
+the pipeline abstraction: `PlanetAtmospheres.EntryBody` (`Core/Rendering/Photoreal.cs`) names the ringed world while
+the ship the camera flies or follows (or the ship it escorts) is in descent, landed or ascent through a ring, and
+`UnitySpaceApp.UpdateAtmosphere` hands only that world's atmosphere to `IRenderBackend.SetAtmosphere`, clearing it
+everywhere else, so orbit and open space draw every planet with the shaders' own rims on HDRP as on URP. Volumetric
+fog follows, since HDRP's backend enables it only inside the sky's air. URP is untouched. Revisit when the descent
+gets its dedicated visual pass.
+
 Both new tickets are filed `open`, pending approval per house rules (chores/features wait for a
 yes; this spike is research, not a fix).
