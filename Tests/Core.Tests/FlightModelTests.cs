@@ -46,7 +46,7 @@ namespace Unity.SpaceGod.Core.Tests
             foreach (ShipClass c in Enum.GetValues(typeof(ShipClass)))
                 Assert.That(reg.For(c), Is.Not.Null, c.ToString());
             Assert.That(reg.FamilyOf(ShipClass.Fighter), Is.EqualTo(FlightFamily.LightFighter));
-            Assert.That(reg.FamilyOf(ShipClass.Courier), Is.EqualTo(FlightFamily.LightFighter));
+            Assert.That(reg.FamilyOf(ShipClass.Courier), Is.EqualTo(FlightFamily.Runner));
             Assert.That(reg.FamilyOf(ShipClass.Gunship), Is.EqualTo(FlightFamily.HeavyFighter));
             Assert.That(reg.FamilyOf(ShipClass.Freighter), Is.EqualTo(FlightFamily.Hauler));
             Assert.That(reg.FamilyOf(ShipClass.Miner), Is.EqualTo(FlightFamily.Hauler));
@@ -188,6 +188,75 @@ namespace Unity.SpaceGod.Core.Tests
             newton.Fly(input, 0.05, 100);
             Assert.That((light.S.Vel - newton.S.Vel).Length, Is.EqualTo(0));
             Assert.That((light.S.Pos - newton.S.Pos).Length, Is.EqualTo(0));
+        }
+
+        // ------------------------------------------------------------ the runner (the Courier, U.SPC-T444)
+
+        [Test]
+        public void TheCourierFliesTheRunnersOwnModelWithTheLightFightersFreeAim()
+        {
+            var reg = FlightModelRegistry.CreateDefault();
+            Assert.That(reg.FamilyOf(ShipClass.Courier), Is.EqualTo(FlightFamily.Runner));
+            var model = reg.For(ShipClass.Courier) as LightFighterFlightModel;
+            Assert.That(model, Is.Not.Null, "a runner flies the light fighter's rules on its own numbers");
+            Assert.That(model.Name, Is.EqualTo("Runner"));
+            Assert.That(model.Handling.Grip, Is.EqualTo(LightFighterHandling.Runner.Grip));
+            Assert.That(model, Is.Not.SameAs(reg.For(ShipClass.Fighter)), "the Fighter keeps the light fighter's model");
+            Assert.That(PilotTuning.ControlOf(ShipClass.Courier), Is.EqualTo(PilotControl.FreeAim));
+
+            var runner = LightFighterHandling.Runner;
+            var light = LightFighterHandling.Default;
+            Assert.That(runner.Grip, Is.LessThan(light.Grip), "low grip");
+            Assert.That(runner.CornerSpeedFraction, Is.LessThan(light.CornerSpeedFraction), "an early corner speed");
+            Assert.That(runner.OverspeedTurnFactor, Is.LessThan(light.OverspeedTurnFactor));
+            Assert.That(runner.StrafeSpeedFraction, Is.LessThan(light.StrafeSpeedFraction), "a runner is no dodger");
+        }
+
+        [Test]
+        public void TheCourierHasTheHighestTopSpeedTheLongestBoostAndTheFastestCruiseSpool()
+        {
+            var courier = PilotTuning.Of(ShipClass.Courier);
+            foreach (ShipClass c in Enum.GetValues(typeof(ShipClass)))
+            {
+                if (c == ShipClass.Courier) continue;
+                var t = PilotTuning.Of(c);
+                Assert.That(courier.MaxSpeed, Is.GreaterThan(t.MaxSpeed), c + " top speed");
+                Assert.That(courier.MaxSpeed * courier.BoostSpeedMultiplier, Is.GreaterThan(t.MaxSpeed * t.BoostSpeedMultiplier), c + " boost speed");
+                Assert.That(courier.BoostDurationS, Is.GreaterThan(t.BoostDurationS), c + " boost duration");
+                Assert.That(courier.CruiseRampS, Is.LessThan(t.CruiseRampS), c + " cruise spool");
+            }
+
+            // A wide turning circle: at top speed it needs more room to come round than any strike craft.
+            double CircleKm(PilotTuning t) => t.MaxSpeed / (t.TurnRateDegS * Astro.Deg2Rad);
+            foreach (var c in new[] { ShipClass.Fighter, ShipClass.Interceptor, ShipClass.Recon, ShipClass.Gunship, ShipClass.Bomber, ShipClass.AssaultShuttle })
+                Assert.That(CircleKm(courier), Is.GreaterThan(CircleKm(PilotTuning.Of(c))), c.ToString());
+        }
+
+        [Test]
+        public void ARunnerSwingsWideInABreakWhereALightFighterCarves()
+        {
+            // The same airframe and the same break, flown by each family's rules: only the handling differs.
+            var tuning = PilotTuning.Of(ShipClass.Fighter);
+            var start = DVec3.UnitX * tuning.MaxSpeed;
+            var light = new Rig(ShipClass.Fighter, new LightFighterFlightModel(), start);
+            var runner = new Rig(ShipClass.Fighter, new LightFighterFlightModel(LightFighterHandling.Runner, "Runner"), start);
+            var input = new PilotInput { DesiredForward = -DVec3.UnitY, Throttle = 1 };
+            double lightReach = 0, runnerReach = 0;
+            for (int i = 0; i < 100; i++)
+            {
+                light.Fly(input, 0.01, 1);
+                runner.Fly(input, 0.01, 1);
+                lightReach = Math.Max(lightReach, light.S.Pos.X);
+                runnerReach = Math.Max(runnerReach, runner.S.Pos.X);
+            }
+            Assert.That(AngleDeg(runner.S.Vel, runner.S.Forward), Is.GreaterThan(AngleDeg(light.S.Vel, light.S.Forward)), "the runner's track lags its nose");
+            Assert.That(runnerReach, Is.GreaterThan(lightReach * 1.2), $"overshoot {runnerReach:F3} km vs a light fighter's {lightReach:F3} km");
+
+            // Past its early corner speed the runner's nose stiffens sooner.
+            var runnerModel = new LightFighterFlightModel(LightFighterHandling.Runner);
+            var lightModel = new LightFighterFlightModel();
+            Assert.That(runnerModel.TurnRateAt(tuning.MaxSpeed, tuning), Is.LessThan(lightModel.TurnRateAt(tuning.MaxSpeed, tuning)));
+            Assert.That(runnerModel.GripAccel(tuning), Is.LessThan(lightModel.GripAccel(tuning) * 0.5));
         }
     }
 }

@@ -14,7 +14,7 @@ This covers handling: how the stick, throttle and keys become motion. Weapons, l
 
 `Core/Combat/FlightModels.cs`:
 
-- **`FlightFamily`**: `LightFighter`, `HeavyFighter`, `Hauler`, `Capital`, and since U.SPC-T484 `Interceptor` and `Bomber`. A family describes a way of flying, not a particular hull.
+- **`FlightFamily`**: `LightFighter`, `HeavyFighter`, `Hauler`, `Capital`, since U.SPC-T484 `Interceptor` and `Bomber`, and since U.SPC-T444 `Runner`. A family describes a way of flying, not a particular hull.
 - **`IFlightModel`**: one `Step` that takes the same arguments `PilotFlight.Step` always took (state, combat, hull dynamics, class tuning, input, gravity, dt). A model is stateless: anything that carries over between frames lives on `PilotState` or `ShipCombat`, so a single instance flies every hull in its family, and saves need no changes.
 - **`FlightModelRegistry`**: two data tables, class to family and family to model. `FlightModelRegistry.Default` is the game's own. A family with no model registered flies `Fallback`, which is `NewtonianFlightModel`: the pre-T17 behaviour, unchanged.
 - **`PilotFlight`'s stages** (`Rotate`, `DriveMultiplier`, `AssistThrust`, `RawThrust`, `Integrate`) are public. A new model is assembled from these stages plus rules of its own, so it never needs a branch inside `PilotFlight`.
@@ -24,7 +24,7 @@ To add a way of flying: write an `IFlightModel` and its handling struct, then ca
 
 **Tunables are data.** Each model takes a `readonly struct` of handling numbers (for example `LightFighterHandling`) with a `Default`. When the settings registry (U.SPC-T431) lands, each field becomes a declared setting, and the model reads whatever value the registry holds.
 
-**The light/heavy fighter split** is made at the family level. The heavy fighter is the Gunship (U.SPC-T467), an armoured multi-crew hull with two crewed turrets and a spinal light railgun, built for brawling and anti-corvette work. It holds the heavy-fighter slots in patrol wings, escort wings (at the heavy hire fee) and the scene tour that the Breacher used to fill. The Fighter and Courier are the light fighters. The Breacher is not a fighter, and not a ship at all: it is a boarding round fired from a Breacher Bay, with no ship class or flight family (see [Fired rounds](#fired-rounds-the-breacher)).
+**The light/heavy fighter split** is made at the family level. The heavy fighter is the Gunship (U.SPC-T467), an armoured multi-crew hull with two crewed turrets and a spinal light railgun, built for brawling and anti-corvette work. It holds the heavy-fighter slots in patrol wings, escort wings (at the heavy hire fee) and the scene tour that the Breacher used to fill. The Fighter is the light fighter; the Courier is no fighter but a blockade runner, with a family of its own (see [Couriers](#couriers)). The Breacher is not a fighter, and not a ship at all: it is a boarding round fired from a Breacher Bay, with no ship class or flight family (see [Fired rounds](#fired-rounds-the-breacher)).
 
 | Class | Family | Model today |
 | --- | --- | --- |
@@ -32,7 +32,7 @@ To add a way of flying: write an `IFlightModel` and its handling struct, then ca
 | Fighter (space superiority) | Light fighter | `LightFighterFlightModel` |
 | Bomber | Bomber | `BomberFlightModel` (see [Strike craft](#strike-craft-interceptors-fighters-and-bombers)) |
 | Assault shuttle (U.SPC-T486) | Bomber | `BomberFlightModel`: a heavy throttle and a weak strafe for coming alongside a prize (see `BoardingShuttles`) |
-| Courier | Light fighter | `LightFighterFlightModel` (new; see [Couriers](#couriers)) |
+| Courier | Runner | `LightFighterFlightModel` on `LightFighterHandling.Runner` (see [Couriers](#couriers)) |
 | Gunship | Heavy fighter | Newtonian, until its own model lands |
 | Freighter, Miner | Hauler | Newtonian, until its own model lands |
 | Carrier, Battleship, Cruiser, Destroyer (and the Command cruiser and Frigate) | Capital | `CapitalFlightModel`, each class on its own `CapitalHandling` (see [Capital ships](#capital-ships-black-flag-or-rebel-galaxy)) |
@@ -154,7 +154,15 @@ Tunables (`HaulerHandling`): mass-per-tonne weighting, docking set point and tur
 
 ## Couriers
 
-The Courier flies as a light fighter for now: it shares the free-aim controls and the agile airframe. The proposal is a **Runner** family of its own, decided in its own ticket: the highest top speed and longest boost in the game, a wide turning circle (low grip, an early corner speed) and a cruise drive that spools up fastest. It would be a blockade runner, not a dogfighter. If the review prefers the Courier as a light fighter, that ticket closes as won't-do and nothing changes.
+**Implemented** (U.SPC-T444, `FlightFamily.Runner`, tests in `Tests/Core.Tests/FlightModelTests.cs`).
+
+The Courier carries the mail, surveys and urgent parcels, and lands where warships hold orbit: it is a blockade runner, not a dogfighter, so it flies a **Runner** family of its own. It keeps the light fighter's free-aim controls (`PilotControl.FreeAim`) and flies the light fighter's rules on its own numbers (`LightFighterHandling.Runner`), the way the interceptor does:
+
+1. **Low grip.** Assist pushes across the nose only 0.6 of the push that holds the track to it at the corner speed (against 1.0), so a hard break at speed swings wide on a big circle instead of carving.
+2. **An early corner speed.** The nose swings at the full rate only up to 0.4 of top speed (against 0.6), and tapers to 0.45 of it at full boost (against 0.6). To turn, a runner has to slow right down.
+3. **A modest strafe.** The strafe set point is 0.35 of the forward one (the shared model's, against the light fighter's 0.5). It gets away by running, not by dodging.
+
+Its helm tuning (`PilotTuning`) makes it the fastest thing at the helm: the highest top speed in the game (0.52 km/s, against the interceptor's 0.48), the fastest boost (2.4 times) and the longest one (45 s, longer than any hauler's), and a cruise drive that spools up fastest (1.2 s). Its turn rate is lower than any fighter's (120°/s), so its turning circle at top speed is the widest of any small craft. A test checks each of these against every other class.
 
 ## Fired rounds: the Breacher
 
@@ -176,6 +184,6 @@ Each family is its own ticket, linked part-of U.SPC-T17, approved and worked one
 2. U.SPC-T441: the heavy-fighter model (Everspace 2).
 3. U.SPC-T499: the capital model (Black Flag handling in full 3D; it replaces U.SPC-T442, which assumed a battle plane). Landed.
 4. U.SPC-T443: the hauler model.
-5. U.SPC-T444: the Courier, as a Runner family or a light fighter.
+5. U.SPC-T444: the Courier, as a Runner family of its own. Landed.
 
 Every one of these adds a model and a handling struct, registers it, and keeps the logic in Core with tests. None of them edits `PilotFlight` or another family's model.

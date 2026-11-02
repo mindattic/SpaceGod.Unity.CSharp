@@ -11,8 +11,8 @@ namespace Unity.SpaceGod.Core
     /// </summary>
     public enum FlightFamily
     {
-        /// <summary>Star Conflict-style dogfighters (the Fighter, the space superiority workhorse, and for now the
-        /// Courier): the track carves after the nose, strafing is strong, and a turn is tightest at the corner speed.</summary>
+        /// <summary>Star Conflict-style dogfighters (the Fighter, the space superiority workhorse): the track carves
+        /// after the nose, strafing is strong, and a turn is tightest at the corner speed.</summary>
         LightFighter,
 
         /// <summary>Everspace 2-style heavy fighters: the Gunship (U.SPC-T467).</summary>
@@ -31,6 +31,12 @@ namespace Unity.SpaceGod.Core
         /// <summary>Bombers (U.SPC-T484): a steady, heavy torpedo platform, with a wide carve, a weak strafe and a
         /// throttle with heft.</summary>
         Bomber,
+
+        /// <summary>Runners (U.SPC-T444): the Courier, a blockade runner rather than a dogfighter. The light fighter's
+        /// rules with little grip and an early corner speed, so it turns on a wide circle, on the highest top speed,
+        /// the longest boost and the fastest cruise spool in the game (<see cref="LightFighterHandling.Runner"/>).
+        /// Last in the list so the other families keep their numbers.</summary>
+        Runner,
     }
 
     /// <summary>
@@ -109,6 +115,12 @@ namespace Unity.SpaceGod.Core
         /// game, a higher corner speed and less of the turn lost past it, so it turns with what it runs down.</summary>
         public static readonly LightFighterHandling Interceptor = new LightFighterHandling(
             grip: 1.25, strafeSpeedFraction: 0.6, cornerSpeedFraction: 0.75, overspeedTurnFactor: 0.75);
+
+        /// <summary>The runner's numbers (U.SPC-T444, docs/FLIGHT_MODELS.md, Couriers): little grip, a modest strafe, an
+        /// early corner speed and most of the turn lost past it, so at speed it swings wide on a big circle. It outruns a
+        /// fight; it does not turn in one.</summary>
+        public static readonly LightFighterHandling Runner = new LightFighterHandling(
+            grip: 0.6, strafeSpeedFraction: 0.35, cornerSpeedFraction: 0.4, overspeedTurnFactor: 0.45);
     }
 
     /// <summary>
@@ -533,7 +545,7 @@ namespace Unity.SpaceGod.Core
         public IFlightModel Fallback { get; set; } = NewtonianFlightModel.Instance;
 
         /// <summary>The game's registry: every class in its family, and the light fighters, interceptors,
-        /// bombers and capital ships on models of their own; the other families fly the Newtonian model until theirs land (docs/FLIGHT_MODELS.md).</summary>
+        /// bombers, runners and capital ships on models of their own; the other families fly the Newtonian model until theirs land (docs/FLIGHT_MODELS.md).</summary>
         public static FlightModelRegistry Default { get; } = CreateDefault();
 
         public static FlightModelRegistry CreateDefault()
@@ -546,7 +558,8 @@ namespace Unity.SpaceGod.Core
             r.Assign(ShipClass.Recon, FlightFamily.Interceptor);
             // A boarding shuttle (U.SPC-T486) flies like a bomber: a heavy throttle and a weak strafe.
             r.Assign(ShipClass.AssaultShuttle, FlightFamily.Bomber);
-            r.Assign(ShipClass.Courier, FlightFamily.LightFighter);
+            // The Courier (U.SPC-T444) is a blockade runner, flying a family of its own.
+            r.Assign(ShipClass.Courier, FlightFamily.Runner);
             r.Assign(ShipClass.Gunship, FlightFamily.HeavyFighter);
             r.Assign(ShipClass.Freighter, FlightFamily.Hauler);
             r.Assign(ShipClass.Miner, FlightFamily.Hauler);
@@ -566,6 +579,7 @@ namespace Unity.SpaceGod.Core
             r.Register(FlightFamily.LightFighter, new LightFighterFlightModel());
             r.Register(FlightFamily.Interceptor, new LightFighterFlightModel(LightFighterHandling.Interceptor, "Interceptor"));
             r.Register(FlightFamily.Bomber, new BomberFlightModel());
+            r.Register(FlightFamily.Runner, new LightFighterFlightModel(LightFighterHandling.Runner, "Runner"));
             // Capital ships (U.SPC-T499): one model, each class on its own handling.
             r.Register(FlightFamily.Capital, new CapitalFlightModel());
             foreach (var c in CapitalHandling.Classes) r.Register(c, new CapitalFlightModel(CapitalHandling.Of(c)));
