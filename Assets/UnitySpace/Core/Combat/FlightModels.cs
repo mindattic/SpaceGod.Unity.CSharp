@@ -15,7 +15,7 @@ namespace Unity.SpaceGod.Core
         /// after the nose, strafing is strong, and a turn is tightest at the corner speed.</summary>
         LightFighter,
 
-        /// <summary>Everspace 2-style heavy fighters: the Gunship (U.SPC-T467).</summary>
+        /// <summary>Everspace 2-style heavy fighters (U.SPC-T441, <see cref="HeavyFighterFlightModel"/>): the Gunship (U.SPC-T467).</summary>
         HeavyFighter,
 
         /// <summary>Freighters and miners: heavy, deliberate haulers.</summary>
@@ -254,6 +254,141 @@ namespace Unity.SpaceGod.Core
                 Math.Max(hull.LateralAccel, grip), Math.Max(hull.VerticalAccel, grip));
             PilotFlight.Integrate(ref s, thrust, gravityKmS2, dt);
         }
+    }
+
+    /// <summary>
+    /// The heavy fighter's handling numbers (U.SPC-T441, docs/FLIGHT_MODELS.md, Heavy fighters): data, not code, like
+    /// <see cref="LightFighterHandling"/>, each one a setting for the settings registry (U.SPC-T431) to declare.
+    /// </summary>
+    public readonly struct HeavyFighterHandling
+    {
+        /// <summary>The cap on the nose's swing, as a fraction of the light fighter's turn rate (the space superiority
+        /// fighter's, <see cref="LightFighterTurnRateDegS"/>): stiff, below any light fighter. A class tuned slower still keeps
+        /// its own rate.</summary>
+        public readonly double TurnRateCapFraction;
+
+        /// <summary>Seconds for the nose to spin up from still to its top swing (and to stop from it): short, so the nose
+        /// starts and stops crisply. A hull whose own attitude thrusters spin it faster keeps its own.</summary>
+        public readonly double SpinUpS;
+
+        /// <summary>With flight assist on, seconds for the hull to settle (to within 5%) on a new set point, forward,
+        /// sideways or vertically: a short ease, whatever its thrusters, so a change of speed reads as weight without being slow.</summary>
+        public readonly double SettleS;
+
+        /// <summary>Flight assist's strafe and vertical set points as a fraction of the forward one.</summary>
+        public readonly double StrafeSpeedFraction;
+
+        /// <summary>Seconds over which, once boost is let go, assist bleeds the boost's extra speed off (the whole of
+        /// it, from full boost speed down to top speed), instead of braking hard: a boosted run carries through the target.</summary>
+        public readonly double BoostBleedS;
+
+        public HeavyFighterHandling(double turnRateCapFraction, double spinUpS, double settleS, double strafeSpeedFraction, double boostBleedS)
+        {
+            TurnRateCapFraction = turnRateCapFraction;
+            SpinUpS = spinUpS;
+            SettleS = settleS;
+            StrafeSpeedFraction = strafeSpeedFraction;
+            BoostBleedS = boostBleedS;
+        }
+
+        /// <summary>The light fighter's turn rate the cap is a share of, deg/s: the space superiority fighter's.</summary>
+        public static double LightFighterTurnRateDegS => PilotTuning.Of(ShipClass.Fighter).TurnRateDegS;
+
+        /// <summary>The first-pass numbers, for the owner's review (docs/FLIGHT_MODELS.md).</summary>
+        public static readonly HeavyFighterHandling Default = new HeavyFighterHandling(
+            turnRateCapFraction: 0.7, spinUpS: 0.1, settleS: 0.5, strafeSpeedFraction: 0.45, boostBleedS: 2);
+    }
+
+    /// <summary>
+    /// Heavy fighters, Everspace 2 style (U.SPC-T441): always coupled and very responsive, heavy without being sluggish.
+    /// With flight assist on, (1) the nose turns at one rate at any speed (no corner speed), capped below a light
+    /// fighter's (<see cref="HeavyFighterHandling.TurnRateCapFraction"/>), and spins up and stops hard
+    /// (<see cref="HeavyFighterHandling.SpinUpS"/>), so the aim is "on rails"; (2) assist eases onto its set point over
+    /// <see cref="HeavyFighterHandling.SettleS"/>, forward, sideways and vertically alike, so the hull goes where it
+    /// points and a change of speed has heft; (3) the strafe and vertical set points are
+    /// <see cref="HeavyFighterHandling.StrafeSpeedFraction"/> of the forward one, reached as fast as forward speed, for
+    /// circle-strafing; and (4) speed above the set point (a boost let go) bleeds off over
+    /// <see cref="HeavyFighterHandling.BoostBleedS"/> rather than being braked away, so a boosted run carries through.
+    /// With flight assist off the hull is the Newtonian one, unchanged.
+    /// </summary>
+    public sealed class HeavyFighterFlightModel : IFlightModel
+    {
+        public HeavyFighterHandling Handling { get; }
+
+        public HeavyFighterFlightModel() : this(HeavyFighterHandling.Default) { }
+
+        public HeavyFighterFlightModel(HeavyFighterHandling handling) => Handling = handling;
+
+        public string Name => "Heavy fighter";
+
+        /// <summary>The nose's top swing, deg/s, at any speed: the class's own, capped below a light fighter's.</summary>
+        public double TurnRateDegS(in PilotTuning tuning) =>
+            Math.Min(tuning.TurnRateDegS, Handling.TurnRateCapFraction * HeavyFighterHandling.LightFighterTurnRateDegS);
+
+        /// <summary>The angular acceleration the nose swings with, rad/s²: enough to reach the top swing in
+        /// <see cref="HeavyFighterHandling.SpinUpS"/>, or the hull's own if that is more.</summary>
+        public double TurnAlpha(in HullDynamics hull, in PilotTuning tuning) =>
+            Math.Max(hull.PitchYawAngularAccel, TurnRateDegS(tuning) * Astro.Deg2Rad / Math.Max(1e-3, Handling.SpinUpS));
+
+        /// <summary>The time constant of assist's ease onto its set point, s: a first-order ease is within 5% after three.</summary>
+        public double EaseTimeConstantS => Math.Max(1e-3, Handling.SettleS) / 3;
+
+        /// <summary>The most assist slows a hull running above its set point, km/s² (the boost bleed): the boost's extra
+        /// speed over <see cref="HeavyFighterHandling.BoostBleedS"/>, and never less than the retros give.</summary>
+        public double BleedAccel(in HullDynamics hull, in PilotTuning tuning)
+        {
+            double extra = tuning.MaxSpeed * (Math.Max(1, tuning.BoostSpeedMultiplier) - 1);
+            double bleed = Handling.BoostBleedS > 0 ? extra / Handling.BoostBleedS : double.PositiveInfinity;
+            return Math.Max(hull.RetroAccel, bleed);
+        }
+
+        /// <summary>How far the stick's aim may run ahead of the nose, radians (as <see cref="PilotFlight.AimLeadRad"/>, for
+        /// this model's own swing and spin-up).</summary>
+        public double AimLeadRad(in HullDynamics hull, in PilotTuning tuning)
+        {
+            double rate = TurnRateDegS(tuning) * Astro.Deg2Rad;
+            double brake = rate * rate / (2 * TurnAlpha(hull, tuning));
+            return Math.Min(Math.PI, Math.Max(PilotFlight.MinAimLeadDeg * Astro.Deg2Rad, brake));
+        }
+
+        public void Step(ref PilotState s, ShipCombat combat, in HullDynamics hull, in PilotTuning tuning, in PilotInput input, DVec3 gravityKmS2, double dt)
+        {
+            if (input.FlightAssistOff)
+            {
+                PilotFlight.Step(ref s, combat, hull, tuning, input, gravityKmS2, dt);
+                return;
+            }
+            if (dt <= 0) return;
+
+            var stiff = new HullDynamics(hull.MassKt, hull.MainAccel, hull.RetroAccel, hull.LateralAccel, hull.VerticalAccel,
+                TurnAlpha(hull, tuning), hull.RollAngularAccel);
+            var forwardBeforeTurn = s.Forward;
+            PilotFlight.Rotate(ref s, stiff, TurnRateDegS(tuning), tuning.RollRateDegS, input, dt);
+            double driveMult = PilotFlight.DriveMultiplier(ref s, combat, tuning, input, forwardBeforeTurn, dt);
+
+            var f = s.Forward;
+            var r = s.Right;
+            var u = s.Up;
+            double setPoint = tuning.MaxSpeed * driveMult;
+            double strafe = setPoint * Handling.StrafeSpeedFraction;
+            var commanded = f * (Clamp(input.Throttle) * setPoint) + r * (Clamp(input.StrafeRight) * strafe) + u * (Clamp(input.StrafeUp) * strafe);
+
+            // The ease: every axis closes on its set point with one time constant (gravity cancelled as it goes).
+            var ease = (commanded - s.Vel) / Math.Max(dt, EaseTimeConstantS) - gravityKmS2;
+            double along = DVec3.Dot(s.Vel, f);
+            double fwd = DVec3.Dot(ease, f);
+            // The boost bleed: speed above the set point is shed no faster than the bleed, down to the set point, and the
+            // ease takes over from there.
+            if (along > setPoint)
+            {
+                double shed = Math.Max(-(along - setPoint) / dt, -BleedAccel(hull, tuning)) - DVec3.Dot(gravityKmS2, f);
+                fwd = Math.Max(fwd, shed);
+            }
+            var thrust = f * fwd + r * DVec3.Dot(ease, r) + u * DVec3.Dot(ease, u);
+            PilotFlight.Integrate(ref s, thrust, gravityKmS2, dt);
+        }
+
+        static double Clamp(double x) => Math.Max(-1, Math.Min(1, x));
     }
 
     /// <summary>
@@ -545,7 +680,7 @@ namespace Unity.SpaceGod.Core
         public IFlightModel Fallback { get; set; } = NewtonianFlightModel.Instance;
 
         /// <summary>The game's registry: every class in its family, and the light fighters, interceptors,
-        /// bombers, runners and capital ships on models of their own; the other families fly the Newtonian model until theirs land (docs/FLIGHT_MODELS.md).</summary>
+        /// heavy fighters, bombers, runners and capital ships on models of their own; the other families fly the Newtonian model until theirs land (docs/FLIGHT_MODELS.md).</summary>
         public static FlightModelRegistry Default { get; } = CreateDefault();
 
         public static FlightModelRegistry CreateDefault()
@@ -579,6 +714,8 @@ namespace Unity.SpaceGod.Core
             r.Register(FlightFamily.LightFighter, new LightFighterFlightModel());
             r.Register(FlightFamily.Interceptor, new LightFighterFlightModel(LightFighterHandling.Interceptor, "Interceptor"));
             r.Register(FlightFamily.Bomber, new BomberFlightModel());
+            // Heavy fighters (U.SPC-T441): the Gunship, and the gate picket flown nose-first like one.
+            r.Register(FlightFamily.HeavyFighter, new HeavyFighterFlightModel());
             r.Register(FlightFamily.Runner, new LightFighterFlightModel(LightFighterHandling.Runner, "Runner"));
             // Capital ships (U.SPC-T499): one model, each class on its own handling.
             r.Register(FlightFamily.Capital, new CapitalFlightModel());

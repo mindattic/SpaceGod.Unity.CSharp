@@ -54,7 +54,7 @@ namespace Unity.SpaceGod.Core.Tests
                 Assert.That(reg.FamilyOf(c), Is.EqualTo(FlightFamily.Capital), c.ToString());
 
             Assert.That(reg.For(ShipClass.Fighter), Is.InstanceOf<LightFighterFlightModel>());
-            Assert.That(reg.For(ShipClass.Gunship), Is.SameAs(NewtonianFlightModel.Instance), "heavy fighters keep the shared model until theirs lands");
+            Assert.That(reg.For(ShipClass.Gunship), Is.InstanceOf<HeavyFighterFlightModel>(), "heavy fighters fly their own model (U.SPC-T441)");
             Assert.That(reg.For(ShipClass.Freighter), Is.SameAs(NewtonianFlightModel.Instance));
             Assert.That(reg.For(ShipClass.Carrier), Is.InstanceOf<CapitalFlightModel>(), "capitals fly their own model (U.SPC-T499)");
         }
@@ -73,7 +73,7 @@ namespace Unity.SpaceGod.Core.Tests
             var stub = new StubModel();
             reg.Register(FlightFamily.Hauler, stub);
             Assert.That(reg.For(ShipClass.Freighter), Is.SameAs(stub));
-            Assert.That(reg.For(ShipClass.Gunship), Is.SameAs(NewtonianFlightModel.Instance), "another family was touched");
+            Assert.That(reg.For(ShipClass.Gunship), Is.InstanceOf<HeavyFighterFlightModel>(), "another family was touched");
             Assert.That(reg.For(ShipClass.Fighter), Is.InstanceOf<LightFighterFlightModel>(), "another family was touched");
             Assert.That(reg.For(ShipClass.Battleship), Is.InstanceOf<CapitalFlightModel>(), "another family was touched");
 
@@ -95,7 +95,7 @@ namespace Unity.SpaceGod.Core.Tests
         {
             var reg = FlightModelRegistry.CreateDefault();
             var input = new PilotInput { DesiredForward = new DVec3(0.3, 1, 0.2).Normalized, Throttle = 1, StrafeRight = 0.5, Roll = 0.4, Boost = true };
-            foreach (var c in new[] { ShipClass.Gunship, ShipClass.Freighter, ShipClass.Miner })
+            foreach (var c in new[] { ShipClass.Freighter, ShipClass.Miner })
             {
                 var a = new Rig(c, reg.For(c), new DVec3(0.01, 0.02, 0));
                 var b = new Rig(c, NewtonianFlightModel.Instance, new DVec3(0.01, 0.02, 0));

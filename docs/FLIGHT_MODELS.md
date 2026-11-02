@@ -33,7 +33,7 @@ To add a way of flying: write an `IFlightModel` and its handling struct, then ca
 | Bomber | Bomber | `BomberFlightModel` (see [Strike craft](#strike-craft-interceptors-fighters-and-bombers)) |
 | Assault shuttle (U.SPC-T486) | Bomber | `BomberFlightModel`: a heavy throttle and a weak strafe for coming alongside a prize (see `BoardingShuttles`) |
 | Courier | Runner | `LightFighterFlightModel` on `LightFighterHandling.Runner` (see [Couriers](#couriers)) |
-| Gunship | Heavy fighter | Newtonian, until its own model lands |
+| Gunship (and the gate picket) | Heavy fighter | `HeavyFighterFlightModel` (see [Heavy fighters](#heavy-fighters-everspace-2)) |
 | Freighter, Miner | Hauler | Newtonian, until its own model lands |
 | Carrier, Battleship, Cruiser, Destroyer (and the Command cruiser and Frigate) | Capital | `CapitalFlightModel`, each class on its own `CapitalHandling` (see [Capital ships](#capital-ships-black-flag-or-rebel-galaxy)) |
 
@@ -77,17 +77,19 @@ Their pilots also pick their fights by class. An interceptor goes for enemy craf
 
 ## Heavy fighters: Everspace 2
 
-**Proposed** (U.SPC-T441). Applies to the Gunship, the dedicated heavy-fighter hull.
+**Implemented** (U.SPC-T441, `HeavyFighterFlightModel` and `HeavyFighterHandling` in `Core/Combat/FlightModels.cs`, tests in `Tests/Core.Tests/HeavyFighterFlightTests.cs`). Applies to the Gunship, the dedicated heavy-fighter hull, and to the gate picket, which is flown nose-first like one.
 
-Everspace 2's ships are always coupled and very responsive. The nose is the crosshair (control for this is already in from T269), strafing is a core move, and a heavy ship feels heavy because it carries real heft, not because it is sluggish. Proposed rules:
+**Which hull.** The ticket asked whether the heavy fighter should be a dedicated gunship hull rather than the drill-prowed Breacher. It is: the Gunship (U.SPC-T467) holds every heavy-fighter slot, and the Breacher is no longer a ship at all (U.SPC-T517). Any later heavy-fighter class only has to be assigned to `FlightFamily.HeavyFighter` to fly this model.
 
-1. **Stiff, consistent turning.** There is no corner-speed penalty. The nose turns at the same rate at any speed, but that rate is capped lower than a light fighter's (about 70% of it), and it spins up hard: angular acceleration is high relative to the top rate, so the nose starts and stops crisply. That gives Everspace 2's "on rails" aim.
-2. **Heft on the throttle.** Assist reaches its set point through a short ease (about 0.4 to 0.6 s to settle) instead of the shared model's thrust-limited push. Changes in speed read as weight without being slow.
-3. **Equal-footing strafe.** Strafe and vertical set points are about 0.45 of forward, and ramp up as fast as forward thrust, for Everspace 2-style circle-strafing round a target.
-4. **Boost overshoot.** When boost is released, assist doesn't brake hard. It bleeds the extra speed off over a couple of seconds, so a boosted run carries the hull through the target.
+Everspace 2's ships are always coupled and very responsive. The nose is the crosshair (`PilotControl.DirectNose`, from T269), strafing is a core move, and a heavy ship feels heavy because it carries real heft, not because it is sluggish. With flight assist on:
+
+1. **Stiff, consistent turning.** There is no corner speed. The nose turns at the same rate at any speed, the class's own rate capped at `TurnRateCapFraction` (0.7) of the space superiority fighter's (the Gunship's 115°/s sits just under the cap of 115.5°/s). It spins up hard: the nose reaches its top swing within `SpinUpS` (0.1 s), or quicker if the hull's own attitude thrusters manage more, and it brakes onto the heading just as crisply. That gives Everspace 2's "on rails" aim. `AimLeadRad` gives how far the aim may lead the nose for this swing; the helm still leads by the hull's own (`PilotFlight.AimLeadRad`), slightly more.
+2. **Heft on the throttle.** Assist closes on its set point through a first-order ease that settles to within 5% in `SettleS` (0.5 s), whatever the thrusters, instead of the shared model's thrust-limited push. Changes in speed read as weight without being slow, and the ease never overshoots. Gravity is cancelled as it goes.
+3. **Equal-footing strafe.** The strafe and vertical set points are `StrafeSpeedFraction` (0.45) of forward, reached through the same ease as forward speed, for Everspace 2-style circle-strafing round a target. The same ease pulls the track round after the nose in a turn, so the hull goes where it points.
+4. **Boost overshoot.** Speed along the nose above the set point (a boost let go) is shed no faster than the bleed, which takes the whole of the boost's extra speed off over `BoostBleedS` (2 s), and never slower than the retros would. A boosted run carries the hull through the target, and the ease takes over again at the set point.
 5. **No drift penalty.** Assist-off stays Newtonian, like every other family.
 
-Tunables (`HeavyFighterHandling`): turn-rate cap fraction, settle time, strafe fraction, boost bleed time.
+First-pass numbers (`HeavyFighterHandling.Default`): turn-rate cap 0.7, spin-up 0.1 s, settle 0.5 s, strafe 0.45, boost bleed 2 s. They are data, each ready to be declared as a setting when the settings registry (U.SPC-T431) takes them over.
 
 ## Capital ships: Black Flag or Rebel Galaxy
 
@@ -181,7 +183,7 @@ The Breacher Bay is a facility of two sections that any ship (navy, pirate or a 
 Each family is its own ticket, linked part-of U.SPC-T17, approved and worked one at a time:
 
 1. U.SPC-T440: the light-fighter review and tuning pass with the owner, covering the open questions above.
-2. U.SPC-T441: the heavy-fighter model (Everspace 2).
+2. U.SPC-T441: the heavy-fighter model (Everspace 2). Landed.
 3. U.SPC-T499: the capital model (Black Flag handling in full 3D; it replaces U.SPC-T442, which assumed a battle plane). Landed.
 4. U.SPC-T443: the hauler model.
 5. U.SPC-T444: the Courier, as a Runner family of its own. Landed.
