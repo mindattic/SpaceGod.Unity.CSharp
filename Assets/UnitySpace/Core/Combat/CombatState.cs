@@ -77,8 +77,24 @@ namespace Unity.SpaceGod.Core
             }
         }
 
-        /// <summary>Boarding shuttles in the hangars (carriers, U.SPC-T486, <see cref="BoardingShuttles"/>); losses are made good at a yard.</summary>
-        public int Shuttles;
+        /// <summary>
+        /// The boarding shuttles docked in the shuttle berths (carriers, U.SPC-T486, <see cref="BoardingShuttles"/>), in berth
+        /// order: each an assault shuttle hull of its own with its own damage and pilot (U.SPC-T590, <see cref="CarrierWings"/>),
+        /// sent out as itself and docked again when it lands. Losses are made good at a yard. Empty for a hull with no shuttles.
+        /// </summary>
+        public List<Ship> ShuttleBay = new List<Ship>();
+
+        /// <summary>How many boarding shuttles are docked aboard (<see cref="ShuttleBay"/>). Setting it builds new shuttles for
+        /// the first empty berths, or takes shuttles out from the last berths, until that many are aboard.</summary>
+        public int Shuttles
+        {
+            get => ShuttleBay.Count;
+            set
+            {
+                if (value < ShuttleBay.Count) CarrierWings.TrimShuttles(this, value);
+                else if (value > ShuttleBay.Count) CarrierWings.FillShuttles(this, Math.Min(Spec.Shuttles, value) - ShuttleBay.Count);
+            }
+        }
 
         /// <summary>The player holds this station (a settlement's defence platform or a gate fort) at its
         /// <see cref="StationSeat"/> (U.SPC-T447): its guns are laid on the player's aim, in a fight or out of one. Kept on
@@ -114,7 +130,6 @@ namespace Unity.SpaceGod.Core
         {
             Spec = spec;
             Hull = spec.Hull;
-            Shuttles = spec.Shuttles;
             for (int i = 0; i < spec.Layout.Length; i++) Subsystems.Add(new Subsystem(spec.Layout[i], i));
             double ratings = GeneratorRatings;
             if (ratings > 0)
@@ -122,6 +137,7 @@ namespace Unity.SpaceGod.Core
                     if (s.Kind == SubsystemKind.ShieldGenerator) s.MaxShield = s.Shield = spec.Shield * s.Def.Rating / ratings;
             Interior = interior ?? (hull.HasValue ? Interior.For(hull.Value, spec.Crew, spec.Marines) : Interior.ForPlatform(spec.Crew, spec.Marines));
             CarrierWings.Fill(this, spec.HangarCraft);
+            CarrierWings.FillShuttles(this, spec.Shuttles);
         }
 
         /// <summary>
@@ -137,7 +153,6 @@ namespace Unity.SpaceGod.Core
             var c = new ShipCombat(spec, hull, interior ?? Interior)
             {
                 Hull = spec.Hull * HullFraction,
-                Shuttles = Math.Min(spec.Shuttles, Shuttles),
                 BoostFraction = BoostFraction,
                 Readiness = Readiness,
                 PhaserTuning = PhaserTuning,
@@ -145,6 +160,9 @@ namespace Unity.SpaceGod.Core
             // The same craft stay aboard, as many as the refitted hangars hold (U.SPC-T526).
             c.Hangar = Hangar;
             CarrierWings.Trim(c, spec.HangarCraft);
+            // And the same shuttles, as many as its shuttle berths hold (U.SPC-T590).
+            c.ShuttleBay = ShuttleBay;
+            CarrierWings.TrimShuttles(c, spec.Shuttles);
             for (int i = 0; i < c.Subsystems.Count && i < Subsystems.Count; i++)
             {
                 if (i == changed) continue;
@@ -363,7 +381,7 @@ namespace Unity.SpaceGod.Core
         /// <summary>Builds new craft for up to <paramref name="count"/> of the hangar's empty berths (U.SPC-T526).</summary>
         public void RestoreFighters(int count) => CarrierWings.Fill(this, count);
 
-        /// <summary>Takes boarding shuttles back into the hangars (U.SPC-T486), as many as they hold.</summary>
-        public void RestoreShuttles(int count) => Shuttles = Math.Min(Spec.Shuttles, Shuttles + count);
+        /// <summary>Builds new boarding shuttles for up to <paramref name="count"/> of the empty shuttle berths (U.SPC-T486, U.SPC-T590).</summary>
+        public void RestoreShuttles(int count) => CarrierWings.FillShuttles(this, count);
     }
 }

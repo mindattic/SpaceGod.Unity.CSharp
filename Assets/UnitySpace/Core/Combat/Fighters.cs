@@ -672,8 +672,8 @@ namespace Unity.SpaceGod.Core
         }
 
         /// <summary>A craft back aboard <paramref name="home"/>: a fighter docked in its hangar as itself, damage and pilot and all
-        /// (U.SPC-T526; a full hangar, or a station's, has no berth for it); a boarding shuttle into its shuttle berths
-        /// (U.SPC-T486), and any of its team still aboard back to the barracks.</summary>
+        /// (U.SPC-T526; a full hangar, or a station's, has no berth for it); a boarding shuttle docked in its shuttle berths as
+        /// itself the same way (U.SPC-T486, U.SPC-T590), and any of its team still aboard back to the barracks.</summary>
         public static void TakeAboard(BattleUnit home, BattleUnit craft)
         {
             if (home?.Combat == null) return;
@@ -683,7 +683,8 @@ namespace Unity.SpaceGod.Core
                 else home.Combat.RestoreFighters(1);
                 return;
             }
-            home.Combat.RestoreShuttles(1);
+            if (craft.CraftHull != null) CarrierWings.Dock(home.Combat, craft.CraftHull);
+            else home.Combat.RestoreShuttles(1);
             double team = craft.Combat.Interior.TakeMarines(craft.Combat.Interior.Marines);
             if (team > 0) home.Combat.Interior.Embark(0, team);
         }
@@ -692,24 +693,31 @@ namespace Unity.SpaceGod.Core
 
         /// <summary>
         /// Sends a boarding shuttle out of <paramref name="carrier"/>'s hangar toward <paramref name="target"/> with
-        /// <paramref name="team"/> marines aboard, who fight as well as they drilled in the carrier's habitats.
+        /// <paramref name="team"/> marines aboard, who fight as well as they drilled in the carrier's habitats. The shuttle is
+        /// <paramref name="hull"/> (U.SPC-T590), else the first fit to fly docked in the carrier's shuttle berths, undocked to
+        /// fly as itself on its own hull with its own pilot; a carrier with none docked sends a new one.
         /// </summary>
-        public static BattleUnit LaunchShuttle(Battle b, BattleUnit carrier, BattleUnit target, double team)
+        public static BattleUnit LaunchShuttle(Battle b, BattleUnit carrier, BattleUnit target, double team, Ship hull = null)
         {
             var craft = FighterCraft.AssaultShuttle;
+            hull ??= CarrierWings.ReadyShuttle(carrier.Combat) ?? CarrierWings.NewCraft(FighterRole.AssaultShuttle, -1);
+            CarrierWings.Undock(carrier.Combat, hull);
+            hull.Faction = carrier.Faction;
+            hull.Craft.Carrier = carrier.Ship;
             Subsystem bay = null;
             foreach (var s in carrier.Combat.Subsystems)
                 if (s.Kind == SubsystemKind.Hangar && !s.Destroyed) bay = s;
             var pos = (bay != null ? carrier.PointOf(bay.Def) : carrier.Pos) + carrier.Forward * 0.3;
-            var u = b.NewUnit(UnitKind.Fighter, carrier.Side, carrier.Faction, new ShipCombat(craft.Spec, craft.Class), craft.LengthKm, pos, carrier.Forward);
+            var u = b.NewUnit(UnitKind.Fighter, carrier.Side, carrier.Faction, hull.Combat, craft.LengthKm, pos, carrier.Forward);
+            u.CraftHull = hull;
             u.Vel = carrier.Vel + carrier.Forward * 0.1;
             u.Power = new PowerDistribution();
-            var rng = b.Rng;
+            var pilot = CarrierWings.PilotOf(hull, b.Rng);
+            pilot.Sorties++;
             u.Fighter = new FighterState
             {
                 Carrier = carrier, Squadron = -1, Role = craft.Role, Phase = FighterPhase.Launch, Drill = carrier.Combat.Interior.DrillFactor,
-                Skill = 0.4 + rng.NextDouble() * 0.6, Reaction = 0.4 + rng.NextDouble() * 1.4, Discipline = 0.45 + rng.NextDouble() * 0.5,
-                Seed = rng.NextDouble() * 1000,
+                Skill = pilot.Skill, Reaction = pilot.Reaction, Discipline = pilot.Discipline, Seed = pilot.Seed,
             };
             u.BoardTarget = target;
             if (team > 0) u.Combat.Interior.Embark(0, team);

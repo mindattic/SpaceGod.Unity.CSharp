@@ -138,8 +138,8 @@ namespace Unity.SpaceGod.Core
         public FighterState Fighter;
 
         /// <summary>The carrier's craft this launched unit is (U.SPC-T526, see <see cref="CarrierWings"/>): the hull it flies
-        /// on (its <see cref="Combat"/> is that hull's own) and docks again as when it lands. Null for any other unit, and for a
-        /// boarding shuttle. Not <see cref="Ship"/>, which is only ever a hull in a fleet's list.</summary>
+        /// on (its <see cref="Combat"/> is that hull's own) and docks again as when it lands. Null for any other unit (it is set for a
+        /// carrier's boarding shuttles, U.SPC-T590). Not <see cref="Ship"/>, which is only ever a hull in a fleet's list.</summary>
         public Ship CraftHull;
 
         /// <summary>Boarding: the disabled enemy this ship is closing on to board, and the one it is latched to.</summary>

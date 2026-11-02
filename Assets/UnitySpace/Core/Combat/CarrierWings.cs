@@ -45,6 +45,12 @@ namespace Unity.SpaceGod.Core
     /// A hangar's berths are laid out as its squadrons were always launched: the recon flight first
     /// (<see cref="CombatSpec.ReconCraft"/>), then squadrons of <see cref="SquadronSize"/> in
     /// <see cref="FighterCraft.SquadronMix"/>'s order, so a part-filled hangar holds the recon flight and the first squadrons.
+    ///
+    /// A carrier's boarding shuttles (U.SPC-T590, <see cref="BoardingShuttles"/>) are real craft the same way, in berths of
+    /// their own beside the squadrons (<see cref="ShipCombat.ShuttleBay"/>, <see cref="CombatSpec.Shuttles"/> of them): each
+    /// an assault shuttle hull with its own damage and pilot, sent out as itself with a marine team, docked again as itself
+    /// when it lands, carried hurt until a yard mends it, lost as itself when shot down; a yard builds new ones only for the
+    /// shuttle berths left empty (<see cref="ShipCombat.RestoreShuttles"/>).
     /// </summary>
     public static class CarrierWings
     {
@@ -111,6 +117,45 @@ namespace Unity.SpaceGod.Core
             }
         }
 
+        /// <summary>Builds new boarding shuttles for the first <paramref name="count"/> empty shuttle berths of
+        /// <paramref name="c"/> (U.SPC-T590), as many as it has empty.</summary>
+        public static void FillShuttles(ShipCombat c, int count)
+        {
+            if (count <= 0) return;
+            int berths = Math.Max(0, c.Spec.Shuttles);
+            var taken = new HashSet<int>();
+            foreach (var s in c.ShuttleBay) taken.Add(s.Craft.Berth);
+            for (int b = 0; b < berths && count > 0; b++)
+            {
+                if (taken.Contains(b)) continue;
+                Insert(c.ShuttleBay, NewCraft(FighterRole.AssaultShuttle, b));
+                count--;
+            }
+        }
+
+        /// <summary>Takes shuttles out of the shuttle berths from the last until <paramref name="count"/> are left (U.SPC-T590).</summary>
+        public static void TrimShuttles(ShipCombat c, int count)
+        {
+            count = Math.Max(0, count);
+            while (c.ShuttleBay.Count > count) c.ShuttleBay.RemoveAt(c.ShuttleBay.Count - 1);
+        }
+
+        /// <summary>Whether <paramref name="craft"/> is a boarding shuttle's hull (U.SPC-T590).</summary>
+        public static bool IsShuttle(Ship craft) => craft?.Craft != null && craft.Craft.Role == FighterRole.AssaultShuttle;
+
+        /// <summary>The first shuttle docked in <paramref name="c"/>'s shuttle berths fit to fly (U.SPC-T590), or null.</summary>
+        public static Ship ReadyShuttle(ShipCombat c)
+        {
+            if (c?.ShuttleBay == null) return null;
+            foreach (var s in c.ShuttleBay)
+                if (Flyable(s)) return s;
+            return null;
+        }
+
+        /// <summary>Whether <paramref name="craft"/> is docked in <paramref name="c"/>, in its hangar or its shuttle berths.</summary>
+        public static bool DockedIn(ShipCombat c, Ship craft) =>
+            c != null && craft != null && (c.Hangar.Contains(craft) || c.ShuttleBay.Contains(craft));
+
         /// <summary>Takes craft out of the hangar from its last berths until <paramref name="count"/> are left: they are lost
         /// with the bay they were in.</summary>
         public static void Trim(ShipCombat c, int count)
@@ -123,11 +168,13 @@ namespace Unity.SpaceGod.Core
         /// Docks <paramref name="craft"/> in <paramref name="c"/>'s hangar, if it has room: in its own berth when that is free,
         /// else in the first free berth laid out for its class, else in any free one (a stray from a lost carrier, U.SPC-T473).
         /// The deck crews rearm it, top up its flares and recharge its shields; its damage stays until a yard mends it.
-        /// Returns false, leaving it out, when the hangar is full.
+        /// Returns false, leaving it out, when the hangar is full. A boarding shuttle docks in the shuttle berths instead
+        /// (U.SPC-T590): its own when free, else any free one.
         /// </summary>
         public static bool Dock(ShipCombat c, Ship craft)
         {
-            if (c == null || craft?.Craft == null || c.Hangar.Contains(craft)) return false;
+            if (c == null || craft?.Craft == null || DockedIn(c, craft)) return false;
+            if (IsShuttle(craft)) return DockShuttle(c, craft);
             int berths = c.Spec.HangarCraft;
             if (c.Hangar.Count >= berths) return false;
             var taken = new HashSet<int>();
@@ -150,6 +197,24 @@ namespace Unity.SpaceGod.Core
             craft.Craft.Berth = berth;
             Rearm(craft.Combat);
             Insert(c, craft);
+            return true;
+        }
+
+        static bool DockShuttle(ShipCombat c, Ship craft)
+        {
+            int berths = Math.Max(0, c.Spec.Shuttles);
+            if (c.ShuttleBay.Count >= berths) return false;
+            var taken = new HashSet<int>();
+            foreach (var s in c.ShuttleBay) taken.Add(s.Craft.Berth);
+            int berth = craft.Craft.Berth;
+            if (berth < 0 || berth >= berths || taken.Contains(berth))
+            {
+                berth = 0;
+                while (taken.Contains(berth)) berth++;
+            }
+            craft.Craft.Berth = berth;
+            Rearm(craft.Combat);
+            Insert(c.ShuttleBay, craft);
             return true;
         }
 
@@ -181,13 +246,15 @@ namespace Unity.SpaceGod.Core
         }
 
         /// <summary>Takes <paramref name="craft"/> out of the hangar it is docked in, to fly.</summary>
-        public static bool Undock(ShipCombat c, Ship craft) => c != null && c.Hangar.Remove(craft);
+        public static bool Undock(ShipCombat c, Ship craft) => c != null && (c.Hangar.Remove(craft) || c.ShuttleBay.Remove(craft));
 
-        static void Insert(ShipCombat c, Ship craft)
+        static void Insert(ShipCombat c, Ship craft) => Insert(c.Hangar, craft);
+
+        static void Insert(List<Ship> berths, Ship craft)
         {
-            int at = c.Hangar.Count;
-            while (at > 0 && c.Hangar[at - 1].Craft.Berth > craft.Craft.Berth) at--;
-            c.Hangar.Insert(at, craft);
+            int at = berths.Count;
+            while (at > 0 && berths[at - 1].Craft.Berth > craft.Craft.Berth) at--;
+            berths.Insert(at, craft);
         }
 
         /// <summary>Whether a docked craft is fit to launch: alive and not crippled (its drives or most of its hull gone).</summary>
@@ -206,12 +273,13 @@ namespace Unity.SpaceGod.Core
             c.BoostFraction = 1;
         }
 
-        /// <summary>Repairs every damaged craft docked in <paramref name="c"/>'s hangar whole, as a yard does; returns how many it mended.</summary>
+        /// <summary>Repairs every damaged craft docked in <paramref name="c"/>'s hangar and shuttle berths whole, as a yard
+        /// does; returns how many it mended.</summary>
         public static int MendAboard(ShipCombat c)
         {
             int n = 0;
             if (c?.Hangar == null) return 0;
-            foreach (var s in c.Hangar)
+            foreach (var s in Docked(c))
             {
                 if (s.Combat.Damage <= 0.001) continue;
                 s.Combat.Repair(1);
@@ -221,21 +289,37 @@ namespace Unity.SpaceGod.Core
             return n;
         }
 
-        /// <summary>Docked craft in <paramref name="c"/>'s hangar carrying damage.</summary>
+        /// <summary>Docked craft in <paramref name="c"/>'s hangar and shuttle berths carrying damage.</summary>
         public static int Damaged(ShipCombat c)
         {
             int n = 0;
             if (c?.Hangar != null)
-                foreach (var s in c.Hangar)
+                foreach (var s in Docked(c))
                     if (s.Combat.Damage > 0.001) n++;
             return n;
+        }
+
+        static int DamagedIn(List<Ship> berths)
+        {
+            int n = 0;
+            foreach (var s in berths)
+                if (s.Combat.Damage > 0.001) n++;
+            return n;
+        }
+
+        /// <summary>Every craft docked in <paramref name="c"/>: the hangar's, then the shuttle berths'.</summary>
+        static IEnumerable<Ship> Docked(ShipCombat c)
+        {
+            foreach (var s in c.Hangar) yield return s;
+            if (c.ShuttleBay != null)
+                foreach (var s in c.ShuttleBay) yield return s;
         }
 
         /// <summary>The hangar for the HUD: "18 of 26 aboard", and how many of them are hurt.</summary>
         public static string Describe(ShipCombat c)
         {
             if (c == null) return "";
-            int hurt = Damaged(c);
+            int hurt = DamagedIn(c.Hangar);
             return c.Fighters + " of " + c.Spec.HangarCraft + " aboard" + (hurt > 0 ? ", " + hurt + " damaged" : "");
         }
 

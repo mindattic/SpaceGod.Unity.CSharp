@@ -1870,7 +1870,7 @@ namespace Unity.SpaceGod.Core
         static void StrandHull(BattleUnit u, BattleUnit home)
         {
             var hull = u.CraftHull;
-            if (hull == null || home.Platform == null || home.Combat?.Hangar.Contains(hull) == true) return;
+            if (hull == null || home.Platform == null || CarrierWings.DockedIn(home.Combat, hull)) return;
             CarrierWings.Strand(home.Platform, hull);
         }
 

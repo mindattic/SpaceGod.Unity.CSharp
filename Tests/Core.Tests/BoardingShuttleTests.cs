@@ -209,6 +209,63 @@ namespace Unity.SpaceGod.Core.Tests
             Assert.That(carrier.Combat.Interior.Marines, Is.LessThanOrEqualTo(marines + 1e-6), "the lost team came home");
         }
 
+        // ---------------------------------------------------------------- real hulls (U.SPC-T590)
+
+        [Test]
+        public void EveryShuttleIsARealHullDockedInItsBerthBesideTheSquadrons()
+        {
+            var c = new ShipCombat(CombatSpec.Of(ShipClass.Carrier), ShipClass.Carrier);
+            Assert.That(c.ShuttleBay.Count, Is.EqualTo(2));
+            Assert.That(c.ShuttleBay.Select(s => s.Craft.Berth), Is.EqualTo(new[] { 0, 1 }));
+            Assert.That(c.ShuttleBay.All(s => s.Spec.Class == ShipClass.AssaultShuttle && s.Craft.Role == FighterRole.AssaultShuttle), Is.True);
+            Assert.That(c.Hangar.Any(CarrierWings.IsShuttle), Is.False, "the shuttles keep berths of their own, not the squadrons'");
+
+            // A shuttle that comes home hurt keeps its damage until a yard mends it; only an empty berth is built for.
+            var first = c.ShuttleBay[0];
+            Assert.That(CarrierWings.Undock(c, first), Is.True);
+            first.Combat.Hull *= 0.5;
+            Assert.That(CarrierWings.Dock(c, first), Is.True);
+            Assert.That(c.ShuttleBay[0], Is.SameAs(first), "back in its own berth");
+            Assert.That(CarrierWings.Damaged(c), Is.GreaterThanOrEqualTo(1));
+            c.RestoreShuttles(5);
+            Assert.That(c.ShuttleBay[0], Is.SameAs(first), "a yard builds only for empty berths");
+            CarrierWings.MendAboard(c);
+            Assert.That(first.Combat.Damage, Is.LessThanOrEqualTo(0.001));
+
+            // A refit keeps the same shuttles aboard.
+            var refit = c.Refitted(CombatSpec.Of(ShipClass.Carrier), ShipClass.Carrier, -1);
+            Assert.That(refit.ShuttleBay[0], Is.SameAs(first));
+        }
+
+        [Test]
+        public void AShuttleFliesAsItselfAndLandsBackAsItselfWithItsPilot()
+        {
+            var b = NewBattle(3);
+            var carrier = b.AddShip(Carrier(0), 0, new DVec3(10, 0, 0), -DVec3.UnitX);
+            var prize = b.AddShip(Hull(ShipClass.Freighter, Red, 1), 1, new DVec3(-5, 0, 0), DVec3.UnitX);
+            Cripple(prize);
+            var docked = carrier.Combat.ShuttleBay.ToList();
+
+            BattleUnit shuttle = null;
+            for (int i = 0; i < 20 && shuttle == null; i++)
+            {
+                b.Advance(1);
+                shuttle = Shuttle(b);
+            }
+            Assert.That(shuttle, Is.Not.Null, "the carrier sent no shuttle");
+            Assert.That(shuttle.CraftHull, Is.SameAs(docked[0]), "it flies as the shuttle that was docked");
+            Assert.That(shuttle.Combat, Is.SameAs(docked[0].Combat), "on its own hull");
+            Assert.That(carrier.Combat.ShuttleBay, Does.Not.Contain(docked[0]));
+            var pilot = docked[0].Craft.Pilot;
+            Assert.That(pilot, Is.Not.Null);
+            Assert.That(shuttle.Fighter.Skill, Is.EqualTo(pilot.Skill));
+
+            for (int i = 0; i < 6000 && b.Units.Any(u => BoardingShuttles.Is(u) && u.Present); i++) b.Advance(1);
+            Assert.That(shuttle.Docked, Is.True, "the shuttle never landed");
+            Assert.That(carrier.Combat.ShuttleBay, Does.Contain(docked[0]), "docked again as itself");
+            Assert.That(docked[0].Craft.Pilot, Is.SameAs(pilot), "with the same pilot");
+        }
+
         // ---------------------------------------------------------------- gates
 
         [Test]

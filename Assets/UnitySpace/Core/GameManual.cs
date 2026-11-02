@@ -194,7 +194,9 @@ namespace Unity.SpaceGod.Core
                   "near it (its gunners fire less accurately) and paint it, so the bombers' torpedoes steer harder onto it."),
                 T("Boarding shuttle",
                   "Armoured and unarmed; a carrier keeps two. It carries a team of 24 marines to a disabled hull or a " +
-                  "silenced station or gate fort, latches on and lets them in through the airlock, so the prize is taken intact."),
+                  "silenced station or gate fort, latches on and lets them in through the airlock, so the prize is taken intact. " +
+                  "Each is a craft of its own, docked in its carrier's shuttle berths: it comes home as itself, keeps its " +
+                  "pilot and its damage until a yard mends it, and only one lost is built anew."),
                 T("Flight decks",
                   "Carriers launch their craft down fore-and-aft flight decks and out of the bow. Craft come home by flying " +
                   "the glide path in through the stern, are refuelled, rearmed and repaired, and launch again. At the stick " +

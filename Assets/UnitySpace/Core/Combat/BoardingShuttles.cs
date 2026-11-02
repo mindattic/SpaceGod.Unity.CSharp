@@ -70,7 +70,7 @@ namespace Unity.SpaceGod.Core
         {
             if (group == null) return false;
             foreach (var s in group)
-                if (s != null && !s.Destroyed && s.Combat != null && s.Combat.Shuttles > 0 && s.Combat.MarinesAvailable >= TeamSize.Value + Reserve)
+                if (s != null && !s.Destroyed && s.Combat != null && CarrierWings.ReadyShuttle(s.Combat) != null && s.Combat.MarinesAvailable >= TeamSize.Value + Reserve)
                     return true;
             return false;
         }
@@ -84,9 +84,10 @@ namespace Unity.SpaceGod.Core
     public sealed partial class Battle
     {
         /// <summary>
-        /// A carrier sends a boarding shuttle (U.SPC-T486): with one in its hangars and a working hangar, marines enough for a
-        /// team and its own reserve, and a prize in reach (<see cref="ShuttleTarget"/>), one shuttle every
-        /// <see cref="BoardingShuttles.LaunchSeconds"/>, each to a prize no other shuttle is already flying to.
+        /// A carrier sends a boarding shuttle (U.SPC-T486): with one docked in its shuttle berths fit to fly (a crippled one
+        /// stays aboard, U.SPC-T590) and a working hangar, marines enough for a team and its own reserve, and a prize in reach
+        /// (<see cref="ShuttleTarget"/>), one shuttle every <see cref="BoardingShuttles.LaunchSeconds"/>, each to a prize no
+        /// other shuttle is already flying to.
         /// </summary>
         void SendShuttles(BattleUnit u, double dt)
         {
@@ -102,10 +103,11 @@ namespace Unity.SpaceGod.Core
             if (!HangarWorks(u)) return;
             double team = BoardingShuttles.TeamSize.Value;
             if (c.MarinesAvailable < team + BoardingShuttles.Reserve) return;
+            var hull = CarrierWings.ReadyShuttle(c);
+            if (hull == null) return;
             var target = ShuttleTarget(u);
             if (target == null) return;
-            FighterAI.LaunchShuttle(this, u, target, c.Interior.TakeMarines(team));
-            c.Shuttles--;
+            FighterAI.LaunchShuttle(this, u, target, c.Interior.TakeMarines(team), hull);
             u.ShuttleLaunchIn = BoardingShuttles.LaunchSeconds;
         }
 
@@ -120,7 +122,7 @@ namespace Unity.SpaceGod.Core
         /// rather than closing to board with its own hull.</summary>
         bool BoardsByShuttle(BattleUnit carrier)
         {
-            if (carrier.Combat.Shuttles > 0) return true;
+            if (CarrierWings.ReadyShuttle(carrier.Combat) != null) return true;
             foreach (var o in Units)
                 if (o.Present && BoardingShuttles.Is(o) && o.Fighter.Carrier == carrier) return true;
             return false;
