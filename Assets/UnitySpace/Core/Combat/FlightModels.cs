@@ -18,7 +18,7 @@ namespace Unity.SpaceGod.Core
         /// <summary>Everspace 2-style heavy fighters (U.SPC-T441, <see cref="HeavyFighterFlightModel"/>): the Gunship (U.SPC-T467).</summary>
         HeavyFighter,
 
-        /// <summary>Freighters and miners: heavy, deliberate haulers.</summary>
+        /// <summary>Freighters and miners: heavy, deliberate haulers (U.SPC-T443, <see cref="HaulerFlightModel"/>).</summary>
         Hauler,
 
         /// <summary>Capital ships (Carrier, Battleship, Cruiser, Destroyer): naval broadside handling.</summary>
@@ -717,6 +717,8 @@ namespace Unity.SpaceGod.Core
             // Heavy fighters (U.SPC-T441): the Gunship, and the gate picket flown nose-first like one.
             r.Register(FlightFamily.HeavyFighter, new HeavyFighterFlightModel());
             r.Register(FlightFamily.Runner, new LightFighterFlightModel(LightFighterHandling.Runner, "Runner"));
+            // Haulers (U.SPC-T443): freighters, miners and the other work hulls fly heavy on what they carry.
+            r.Register(FlightFamily.Hauler, new HaulerFlightModel());
             // Capital ships (U.SPC-T499): one model, each class on its own handling.
             r.Register(FlightFamily.Capital, new CapitalFlightModel());
             foreach (var c in CapitalHandling.Classes) r.Register(c, new CapitalFlightModel(CapitalHandling.Of(c)));

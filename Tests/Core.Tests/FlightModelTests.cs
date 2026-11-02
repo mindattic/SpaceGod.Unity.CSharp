@@ -55,7 +55,7 @@ namespace Unity.SpaceGod.Core.Tests
 
             Assert.That(reg.For(ShipClass.Fighter), Is.InstanceOf<LightFighterFlightModel>());
             Assert.That(reg.For(ShipClass.Gunship), Is.InstanceOf<HeavyFighterFlightModel>(), "heavy fighters fly their own model (U.SPC-T441)");
-            Assert.That(reg.For(ShipClass.Freighter), Is.SameAs(NewtonianFlightModel.Instance));
+            Assert.That(reg.For(ShipClass.Freighter), Is.InstanceOf<HaulerFlightModel>(), "haulers fly their own model (U.SPC-T443)");
             Assert.That(reg.For(ShipClass.Carrier), Is.InstanceOf<CapitalFlightModel>(), "capitals fly their own model (U.SPC-T499)");
         }
 
@@ -93,7 +93,11 @@ namespace Unity.SpaceGod.Core.Tests
         [Test]
         public void FamiliesWithoutTheirOwnModelFlyExactlyAsBefore()
         {
-            var reg = FlightModelRegistry.CreateDefault();
+            // Every family in the game has a model of its own now (the haulers last, U.SPC-T443), so a registry with none
+            // registered stands in for one: its families fly the fallback, the shared Newtonian model.
+            var reg = new FlightModelRegistry();
+            reg.Assign(ShipClass.Freighter, FlightFamily.Hauler);
+            reg.Assign(ShipClass.Miner, FlightFamily.Hauler);
             var input = new PilotInput { DesiredForward = new DVec3(0.3, 1, 0.2).Normalized, Throttle = 1, StrafeRight = 0.5, Roll = 0.4, Boost = true };
             foreach (var c in new[] { ShipClass.Freighter, ShipClass.Miner })
             {

@@ -77,6 +77,7 @@ namespace Unity.SpaceGod.Core
                 More("fighters: the mouse aims and the hull turns after it"),
                 More("heavy fighters, freighters: the mouse turns the nose"),
                 More("capital ships: A/D Q/E turn the hull, the mouse looks around"),
+                L("Ctrl", "freighters, miners, in a port's approach: docking mode (docking speed, a gentle turn)"),
                 L("Ring gate", "hyperlanes: fly through a ramp's ring gate to ride the lane"),
                 L("1  /  2-9", "on the lane: 1 come off, 2-9 carry on at the off-ramp"),
                 L("Shift", "interdiction (riding): a raider's field ahead, surge through"),

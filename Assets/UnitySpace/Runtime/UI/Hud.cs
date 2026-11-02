@@ -795,11 +795,29 @@ namespace Unity.SpaceGod.UI
                 if (DirectionToGui(-dir, out var retro)) DrawIcon(Icons.Retrograde, retro, 28, RetrogradeColor);
             }
 
+            // A hauler's stop point (U.SPC-T443): where full retro brings it to rest with what it carries, so the braking
+            // can be planned; marked toward it on the track.
+            var stop = app.PilotStop;
+            string stopText = "";
+            if (stop.HasValue && speed > 1e-6)
+            {
+                var st = stop.Value;
+                stopText = st.Reachable
+                    ? "   STOP " + RangeText(st.DistanceKm) + " in " + Mathf.CeilToInt((float)st.Seconds) + "s"
+                    : "   STOP none (no retro)";
+                if (st.Reachable && st.DistanceKm > 1e-9 && DirectionToGui(st.OffsetKm / st.DistanceKm, out var sp))
+                {
+                    DrawRing(sp, 9, RetrogradeColor);
+                    DrawLabel("STOP " + RangeText(st.DistanceKm), sp + new Vector2(12, 6), RetrogradeColor, true);
+                }
+            }
+
             bool assist = app.PilotFlightAssist;
             // A capital's engine telegraph (U.SPC-T499): the step its engines are rung to, held until rung again.
             var telegraph = app.PilotTelegraph;
             string readout = (assist ? "FLIGHT ASSIST ON" : "FLIGHT ASSIST OFF") +
-                             (telegraph.HasValue ? "   ENGINES " + TelegraphText(telegraph.Value) + " (W/S)" : "") + "   " + SpeedText(speed) +
+                             (telegraph.HasValue ? "   ENGINES " + TelegraphText(telegraph.Value) + " (W/S)" : "") +
+                             (app.PilotDocking ? "   DOCKING" : app.PilotStop.HasValue && app.PilotInPortApproach ? "   hold Ctrl to dock" : "") + "   " + SpeedText(speed) + stopText +
                              (speed > 1e-6 ? "   track " + driftDeg.ToString("0", CultureInfo.InvariantCulture) + "° off the nose" : "") + "   (F)";
             var content = new GUIContent(readout);
             var size = small.CalcSize(content);

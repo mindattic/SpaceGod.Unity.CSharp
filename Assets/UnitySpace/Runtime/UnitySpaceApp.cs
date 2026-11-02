@@ -1372,6 +1372,8 @@ namespace Unity.SpaceGod
                 // W and S ring a capital's engine telegraph a step at a time (U.SPC-T499).
                 TelegraphStep = Input.ThrottleStep,
             };
+            // A hauler flies heavy on what it carries, and Ctrl inside a port's approach is docking mode (U.SPC-T443).
+            HaulerInput(ship, ref input, Input.Slow);
             // An interdiction pulse has knocked the drives out (U.SPC-T42): no thrust, no turning, no boost or cruise
             // until they come back; the hull drifts on what way it had, and the stick waits for them.
             if (PilotStunSeconds > 0)
@@ -1397,6 +1399,7 @@ namespace Unity.SpaceGod
             var velBefore = pilot.Vel;
             // Each family of craft flies by its own rules (U.SPC-T17, docs/FLIGHT_MODELS.md).
             model.Step(ref pilot, ship.Combat, hull, tuning, input, gravity, dt);
+            HaulerReadout(model, hull, input);
             PilotTelegraph = capital != null ? pilot.Telegraph : null;
             SpaceCamera.PilotView = PilotViewRotation(control);
             // The drive runs on the ship's own tanks: every change of velocity its thrusters make (not gravity's

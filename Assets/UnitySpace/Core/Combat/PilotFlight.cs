@@ -40,6 +40,17 @@ namespace Unity.SpaceGod.Core
         /// <summary>Rings the engine telegraph this frame (U.SPC-T499, <see cref="CapitalFlightModel"/>): +1 one step
         /// ahead, -1 one step astern, 0 leaves it where it stands. Only the capital model reads it.</summary>
         public int TelegraphStep;
+
+        /// <summary>The hull's all-up mass over its ready mass (U.SPC-T443, <see cref="HaulerFlightModel.LadenRatio"/>): above 1
+        /// with a load aboard. 0 (unset) reads as 1. Only the hauler model reads it.</summary>
+        public double MassRatio;
+
+        /// <summary>Ctrl held (U.SPC-T443): fine control. Inside a port's approach (<see cref="DockingApproach"/>) it puts a
+        /// hauler in docking mode (<see cref="HaulerFlightModel"/>).</summary>
+        public bool Fine;
+
+        /// <summary>The hull is inside a port's approach (set by the Runtime layer), where <see cref="Fine"/> is docking mode.</summary>
+        public bool DockingApproach;
     }
 
     /// <summary>

@@ -34,10 +34,10 @@ To add a way of flying: write an `IFlightModel` and its handling struct, then ca
 | Assault shuttle (U.SPC-T486) | Bomber | `BomberFlightModel`: a heavy throttle and a weak strafe for coming alongside a prize (see `BoardingShuttles`) |
 | Courier | Runner | `LightFighterFlightModel` on `LightFighterHandling.Runner` (see [Couriers](#couriers)) |
 | Gunship (and the gate picket) | Heavy fighter | `HeavyFighterFlightModel` (see [Heavy fighters](#heavy-fighters-everspace-2)) |
-| Freighter, Miner | Hauler | Newtonian, until its own model lands |
+| Freighter, Miner (and the Explorer, ore and capture tugs, lane tender) | Hauler | `HaulerFlightModel` (see [Haulers](#haulers-freighters-and-miners)) |
 | Carrier, Battleship, Cruiser, Destroyer (and the Command cruiser and Frigate) | Capital | `CapitalFlightModel`, each class on its own `CapitalHandling` (see [Capital ships](#capital-ships-black-flag-or-rebel-galaxy)) |
 
-With flight assist off, every family flies the Newtonian hull. Drifting and turn-and-burn remain available to every pilot. The family models change only what the flight computer does with assist on.
+With flight assist off, every family flies the Newtonian hull. Drifting and turn-and-burn remain available to every pilot. The family models change only what the flight computer does with assist on. The one exception is a hauler's load (U.SPC-T443): it is mass, not the flight computer, so it weighs on the Newtonian hull too.
 
 ## Light fighters: Star Conflict
 
@@ -143,7 +143,7 @@ At the helm the heading leads the nose by what this model's own swing needs (`Ai
 
 ## Haulers: freighters and miners
 
-**Proposed** (follow-up ticket). The controls already shipped in T269 (`Hauler`: nose steering with a slow mouse).
+**Implemented** (U.SPC-T443, `HaulerFlightModel` and `HaulerHandling` in `Core/Combat/HaulerFlight.cs`, tests in `Tests/Core.Tests/HaulerFlightTests.cs`; see [What landed for haulers](#what-landed-for-haulers)). The controls already shipped in T269 (`Hauler`: nose steering with a slow mouse).
 
 A hauler should be satisfying to fly because it is heavy: a run is planned, braking starts early, and a clean docking is an achievement. Proposed rules:
 
@@ -152,7 +152,18 @@ A hauler should be satisfying to fly because it is heavy: a run is planned, brak
 3. **Docking mode.** Holding Ctrl (fine) inside a port's approach drops the set point to docking speed and lowers the turn rate for precise placement.
 4. **No combat agility.** Strafe is weak (0.25), and boost is a short emergency burn, not a dodge.
 
-Tunables (`HaulerHandling`): mass-per-tonne weighting, docking set point and turn fraction, strafe fraction.
+Tunables (`HaulerHandling`): mass-per-tonne weighting, docking set point and turn fraction, strafe fraction, boost charge fraction.
+
+### What landed for haulers
+
+Every hull in the Hauler family (the Freighter and Miner, and the Explorer, ore tug, capture tug and lane tender) flies `HaulerFlightModel` on `HaulerHandling.Default`:
+
+1. **Laden mass.** The helm passes the hull's all-up mass (hull, tanks, trade hold and personal grid hold, `Ship.MassTonnes`) over its ready mass (dry with full tanks and an empty hold, what its thrust figures were set for) as `PilotInput.MassRatio` (`HaulerFlightModel.LadenRatio`). The mass factor is 1 + `MassWeight` (0.6) times the ratio's excess over 1, never below 0.5, and every push (drive, retros, manoeuvre thrusters), the attitude thrusters' spin and the top turn rate are divided by it. A ready hull flies exactly as its design; a full truss freighter (20,000 t in its pods on a 15,000 t ready hull, ratio 2.33, factor 1.8) gathers way, brakes and turns at about 56% of that, and a hull with its tanks burned down is a little handier. The load is physics, so it applies with flight assist off too.
+2. **The stop point.** `HaulerFlightModel.StopPoint` is where the hull comes to rest under full retro with its load aboard: each axis of its way braked by its own thrusters at full push (the retros along the nose, the main drive for a hull backing, the manoeuvre thrusters across), v²/2a along each, and the time the slowest takes. The HUD marks it on the track with its range and reads "STOP <range> in <s>s" next to the speed. With assist on and the throttle cut, the hull stops there.
+3. **Docking mode.** Ctrl held (`PilotInput.Fine`) inside a port's approach (`PilotInput.DockingApproach`: near enough a port of the world flown by to deal with it, the same reach as trading) puts the hull in docking mode: the set point is `DockingSpeedFraction` (0.1) of top speed, the turn rate `DockingTurnFraction` (0.35) of the laden one, and neither boost nor cruise lights. The HUD reads DOCKING, or "hold Ctrl to dock" inside the approach.
+4. **No combat agility.** The strafe set point is 0.25 of the forward one (against 0.35 for the shared model), and the boost's charge is `BoostDurationFraction` (0.25) of the class's, a short emergency burn (9 s on a freighter) that also recharges in a quarter of the time.
+
+Each number is a field of `HaulerHandling`, ready for the settings registry (U.SPC-T431) to declare.
 
 ## Couriers
 
@@ -185,7 +196,7 @@ Each family is its own ticket, linked part-of U.SPC-T17, approved and worked one
 1. U.SPC-T440: the light-fighter review and tuning pass with the owner, covering the open questions above.
 2. U.SPC-T441: the heavy-fighter model (Everspace 2). Landed.
 3. U.SPC-T499: the capital model (Black Flag handling in full 3D; it replaces U.SPC-T442, which assumed a battle plane). Landed.
-4. U.SPC-T443: the hauler model.
+4. U.SPC-T443: the hauler model. Landed.
 5. U.SPC-T444: the Courier, as a Runner family of its own. Landed.
 
 Every one of these adds a model and a handling struct, registers it, and keeps the logic in Core with tests. None of them edits `PilotFlight` or another family's model.

@@ -126,7 +126,15 @@ namespace Unity.SpaceGod.Core
                   "any speed that starts and stops crisply, settle on the throttle and strafe through a short ease, and carry " +
                   "a boost through the target, bleeding it off over a couple of seconds. Capital ships ring an engine telegraph a step at a " +
                   "time (Full Astern, Stop, Slow, Half, Full, Flank), turn best at Half and trace a turning circle; pitch, yaw " +
-                  "and roll are all free, slow and heavy. With assist off, every hull flies plain Newtonian."),
+                  "and roll are all free, slow and heavy. Freighters, miners and the other work hulls fly heavy on what they " +
+                  "carry. With assist off, every hull flies plain Newtonian."),
+                T("Flying a hauler",
+                  "A freighter or miner is heavy, and heavier laden: what is in its hold and its tanks slows its drive, its " +
+                  "braking and its turn, so a full hull is noticeably slower than an empty one. Its retros are weak, and the " +
+                  "HUD shows the stop point, where full retro would bring it to rest and how long that takes, so start " +
+                  "braking early. Inside a port's approach, hold Ctrl for docking mode: the throttle asks only for docking " +
+                  "speed and the nose turns gently, for a clean docking. Its strafe is weak and its boost a short emergency " +
+                  "burn, not a dodge."),
                 T("Cruise",
                   "Hold J flying straight at full throttle and the cruise drive spools up to many times normal speed. It " +
                   "drops out if you take damage, enter a battle, throttle down or turn hard, and the guns cannot fire in it."),
