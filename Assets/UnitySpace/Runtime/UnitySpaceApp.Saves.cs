@@ -252,7 +252,8 @@ namespace Unity.SpaceGod
         void DropSession()
         {
             // A fighter or gun held in the world being left goes back to its AI there (U.SPC-T422); the loaded game starts in command.
-            seat.Release();
+            ReleaseSeat();
+            session = LocalSession.Create(seed: 0);
             commandWarp = -1;
             commandFocus = Target.None;
             Piloted = Target.None;

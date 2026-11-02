@@ -562,6 +562,7 @@ Planned, from the open tickets in [docs/USER_STORIES.md](docs/USER_STORIES.md):
 
 ## Documentation
 
+- [docs/BIBLE.md](docs/BIBLE.md): the project's laws, starting with U.SPC-LAW-1 (multiplayer-ready, per Unity.Multiplayer's standard): the `ISession`/`LocalSession` seam in `Core/Session`, player commands stamped with a player id, and what still stands between the game and co-op or PvP.
 - [docs/USER_STORIES.md](docs/USER_STORIES.md): every story and ticket, with the test that proves each one. It is generated from the MindAttic.Tickets database; change tickets with the tickets CLI, not by hand.
 - [Assets/UnitySpace/Resources/Textures/SOURCES.md](Assets/UnitySpace/Resources/Textures/SOURCES.md): where every surface map comes from and its caveats.
 - [Assets/UnitySpace/Core/Systems/SOURCES.md](Assets/UnitySpace/Core/Systems/SOURCES.md): Alpha Centauri, nearby stars, spacecraft orbits and ring sites, with the assumptions made.

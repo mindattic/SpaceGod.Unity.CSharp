@@ -13,12 +13,43 @@ namespace Unity.SpaceGod
     /// view and time warp the commander had. Nothing pauses and nothing loads: the clock runs on at real time while a
     /// seat is held, the camera glides from seat to seat, and every other seat goes on under its own AI. A ship's helm
     /// is flown by the existing pilot loop (<see cref="EnterPiloting"/>); every other seat is held by
-    /// <see cref="seat"/> and driven here through <see cref="IEmbodiable.Control"/>.
+    /// <see cref="session"/> and driven here through <see cref="IEmbodiable.Control"/>.
     /// </summary>
     public sealed partial class UnitySpaceApp
     {
-        /// <summary>The non-helm seat the player holds (a fighter's cockpit, a gun mount), if any.</summary>
-        readonly EmbodimentSession seat = new EmbodimentSession();
+        /// <summary>
+        /// The session every non-helm seat (a fighter's cockpit, a gun mount) is held through (U.SPC-T410, docs/BIBLE.md
+        /// U.SPC-LAW-1): input here only submits commands stamped with <see cref="LocalSession.LocalPlayer"/>, and reads back
+        /// what the session's authority says the local player holds. Replaced with a fresh one when a game is loaded.
+        /// </summary>
+        LocalSession session = LocalSession.Create(seed: 0);
+
+        /// <summary>What the local player holds at a non-helm seat, as the session's state says, or null.</summary>
+        IEmbodiable HeldNonHelm => session.State.SeatOf(session.LocalPlayer);
+
+        /// <summary>Hands the local player's seat back to its AI, through the session.</summary>
+        void ReleaseSeat()
+        {
+            session.Submit(new ReleaseSeatCommand(session.LocalPlayer));
+            session.ApplyPending();
+        }
+
+        /// <summary>Takes <paramref name="next"/> for the local player through the session, handing back what was held: true
+        /// if it is held now (as <see cref="EmbodimentSession.Switch"/>).</summary>
+        bool SwitchSeat(IEmbodiable next)
+        {
+            session.Submit(new TakeSeatCommand(session.LocalPlayer, session.IdOf(next)));
+            session.ApplyPending();
+            return Equals(HeldNonHelm, next);
+        }
+
+        /// <summary>Moves the local player up from a mounted seat to its host, through the session: true if the host is held now.</summary>
+        bool SeatToHost(IEmbodiable host)
+        {
+            session.Submit(new MoveToHostCommand(session.LocalPlayer));
+            session.ApplyPending();
+            return host != null && Equals(HeldNonHelm, host);
+        }
 
         /// <summary>Where the stick points at a seat, Unity axes (unit): the mouse swings it, the view follows it.</summary>
         Vector3 seatAim = Vector3.forward;
@@ -30,10 +61,10 @@ namespace Unity.SpaceGod
         Target commandFocus = Target.None;
 
         /// <summary>True while a non-helm seat (a fighter, a gun) is held.</summary>
-        public bool IsSeated => seat.Active;
+        public bool IsSeated => HeldNonHelm != null;
 
         /// <summary>What is held at a non-helm seat, or null.</summary>
-        public IEmbodiable Seat => seat.Current;
+        public IEmbodiable Seat => HeldNonHelm;
 
         /// <summary>The player is at some controls (a helm or any other seat): the strategy view's keys and clicks stand aside.</summary>
         public bool AtControls => IsPiloting || IsSeated;
@@ -48,7 +79,7 @@ namespace Unity.SpaceGod
 
         /// <summary>
         /// Takes <paramref name="next"/>, handing back whatever was held first: a ship's helm through the pilot loop, any
-        /// other seat through <see cref="seat"/>. The clock drops to real time (a fight is flown at the pace it is fought)
+        /// other seat through <see cref="session"/>. The clock drops to real time (a fight is flown at the pace it is fought)
         /// but never stops, and the camera glides to the new seat.
         /// </summary>
         void TakeSeat(IEmbodiable next)
@@ -62,14 +93,14 @@ namespace Unity.SpaceGod
             RememberCommand();
             if (next is ShipHelm helm)
             {
-                seat.Release();
+                ReleaseSeat();
                 if (IsPiloting && Piloted.Ship == helm.Ship) return;
                 if (IsPiloting) ExitPiloting();
                 EnterPiloting(Target.OfShip(helm.Ship));
                 return;
             }
             if (IsPiloting) ExitPiloting();
-            if (!seat.Switch(next))
+            if (!SwitchSeat(next))
             {
                 ShowToast("Can't take " + next.Name + ": " + (next.Blocker ?? "out of reach"));
                 return;
@@ -125,7 +156,7 @@ namespace Unity.SpaceGod
         /// </summary>
         void MoveSeatToHost()
         {
-            if (!(seat.Current is MountedTurret gun)) return;
+            if (!(HeldNonHelm is MountedTurret gun)) return;
             if (gun.Host == null)
             {
                 ShowToast("The " + gun.Unit.Name + " has no helm to take: / next gun, P back to command");
@@ -137,10 +168,10 @@ namespace Unity.SpaceGod
                 return;
             }
             var host = gun.Host;
-            if (!seat.MoveToHost())
+            if (!SeatToHost(host))
             {
                 ShowToast("Can't take " + host.Name + ": " + (host.Blocker ?? "out of reach"));
-                if (!seat.Active) ReturnToCommand();
+                if (!IsSeated) ReturnToCommand();
                 return;
             }
             SpaceCamera.PilotEye = null;
@@ -165,8 +196,8 @@ namespace Unity.SpaceGod
         /// </summary>
         void ReturnToCommand(string why = null)
         {
-            string name = seat.Current?.Name;
-            seat.Release();
+            string name = HeldNonHelm?.Name;
+            ReleaseSeat();
             if (IsPiloting)
             {
                 name = Piloted.Ship?.Name;
@@ -188,8 +219,8 @@ namespace Unity.SpaceGod
         /// else the battle nearest the camera.</summary>
         Battle BattleInView()
         {
-            if (seat.Current is FighterSeat f) return f.Battle;
-            if (seat.Current is MountedTurret t) return t.Battle;
+            if (HeldNonHelm is FighterSeat f) return f.Battle;
+            if (HeldNonHelm is MountedTurret t) return t.Battle;
             if (IsPiloting && Piloted.Ship?.Battle != null) return Piloted.Ship.Battle;
             if (Selected.IsShip && Selected.Ship.Battle != null) return Selected.Ship.Battle;
             var focus = SpaceCamera.FocusTarget;
@@ -234,7 +265,7 @@ namespace Unity.SpaceGod
                 ShowToast(battle == null ? "No battles under way: nothing to take charge of" : "Nobody left to fly in " + battle.Name);
                 return;
             }
-            IEmbodiable current = seat.Current ?? (IsPiloting && Piloted.Ship != null ? Embodiables.HelmOf(World, Piloted.Ship) : null);
+            IEmbodiable current = HeldNonHelm ?? (IsPiloting && Piloted.Ship != null ? Embodiables.HelmOf(World, Piloted.Ship) : null);
             if (current is MountedTurret gun) current = gun.Host;
             IEmbodiable next;
             if (current == null || !seats.Contains(current))
@@ -266,7 +297,7 @@ namespace Unity.SpaceGod
         {
             BattleUnit unit = null;
             Battle battle = null;
-            if (seat.Current is MountedTurret held)
+            if (HeldNonHelm is MountedTurret held)
             {
                 unit = held.Unit;
                 battle = held.Battle;
@@ -293,12 +324,12 @@ namespace Unity.SpaceGod
                 ShowToast("The " + unit.Name + " has no gun left to man");
                 return;
             }
-            if (seat.Current is MountedTurret last && guns.IndexOf(last) == guns.Count - 1 && last.Host != null)
+            if (HeldNonHelm is MountedTurret last && guns.IndexOf(last) == guns.Count - 1 && last.Host != null)
             {
                 MoveSeatToHost();
                 return;
             }
-            TakeSeat(Embodiables.Cycle(guns, seat.Current, 1));
+            TakeSeat(Embodiables.Cycle(guns, HeldNonHelm, 1));
         }
 
         // ---------------------------------------------------------------- the picker (U.SPC-T446)
@@ -319,7 +350,7 @@ namespace Unity.SpaceGod
         }
 
         /// <summary>What the player holds now, a helm or any other seat, or null in command.</summary>
-        public IEmbodiable HeldSeat => seat.Current ?? (IsPiloting && Piloted.Ship != null ? Embodiables.HelmOf(World, Piloted.Ship) : null);
+        public IEmbodiable HeldSeat => HeldNonHelm ?? (IsPiloting && Piloted.Ship != null ? Embodiables.HelmOf(World, Piloted.Ship) : null);
 
         /// <summary>
         /// The picker's list (U.SPC-T446), rebuilt a few times a second from <see cref="Embodiables.Pickable"/>: the seats on
@@ -333,7 +364,7 @@ namespace Unity.SpaceGod
             var battle = BattleInView();
             BattleUnit onUnit = null;
             Ship onShip = null;
-            switch (seat.Current)
+            switch (HeldNonHelm)
             {
                 case MountedTurret t:
                     onUnit = t.Unit;
@@ -442,8 +473,8 @@ namespace Unity.SpaceGod
         /// </summary>
         void UpdateSeat(float dt)
         {
-            if (!seat.Active) return;
-            var held = seat.Current;
+            var held = HeldNonHelm;
+            if (held == null) return;
             var look = ClickPanelOpen ? Vector2.zero : Input.MouseDelta;
             var rot = SpaceCamera.Rotation;
             var up = rot * Vector3.up;
@@ -464,9 +495,12 @@ namespace Unity.SpaceGod
             if (held is FighterSeat cockpit && !ClickPanelOpen) UpdateCockpit(cockpit, input.Aim);
             // On the sim clock's time, so a fight run faster is flown faster too.
             double simDt = dt * Clock.Warp.SimSecondsPerSecond * Clock.Speed;
-            if (!seat.Step(input, simDt))
+            // The stick goes in as the local player's command; the session's authority steps the seat with it.
+            session.Submit(new SeatControlCommand(session.LocalPlayer, input));
+            session.Advance(simDt);
+            if (HeldNonHelm == null)
             {
-                ReturnToCommand(seat.EndedBecause ?? "lost");
+                ReturnToCommand(session.State.EndedBecause(session.LocalPlayer) ?? "lost");
                 return;
             }
             var pose = held.PoseAt(Clock.Jd);
@@ -520,7 +554,7 @@ namespace Unity.SpaceGod
         /// <summary>The HUD's line at a non-helm seat (null when none is held): what is held, its state, and the keys out.</summary>
         public string SeatLine()
         {
-            switch (seat.Current)
+            switch (HeldNonHelm)
             {
                 case FighterSeat f:
                     return f.Readout() + "  ·  ' ; next seat   P back to command";

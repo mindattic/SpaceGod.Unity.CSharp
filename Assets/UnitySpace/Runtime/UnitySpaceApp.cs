@@ -1074,7 +1074,7 @@ namespace Unity.SpaceGod
         public void SpawnShip(ShipClass cls, bool hostile)
         {
             RememberCommand();
-            seat.Release();
+            ReleaseSeat();
             if (IsPiloting) ExitPiloting();
 
             // Where the camera is now: its free-flight frame goes stale while it is focused on something far off.
