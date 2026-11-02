@@ -543,13 +543,6 @@ namespace Unity.SpaceGod.Core
                 new FacilitySite(FacilityKinds.Bridge, "Bridge", 0.15, 0.04), new FacilitySite(FacilityKinds.Midships, "Sensor room", -0.08),
                 new FacilitySite(FacilityKinds.Engineering, "Engineering", -0.3),
             },
-            // A Breacher round (U.SPC-T466) has no habitat: its troop compartment carries one team (seventy marines, as many as
-            // a stock round holds) to the target and does not train them.
-            [ShipClass.Breacher] = new[]
-            {
-                new FacilitySite(FacilityKinds.TroopCompartment, "Troop compartment", 0.25, 0, FacilitySite.Keel, 70), new FacilitySite(FacilityKinds.Bridge, "Bridge", 0, 0.03),
-                new FacilitySite(FacilityKinds.Engineering, "Engineering", -0.3),
-            },
             // A boarding shuttle (U.SPC-T486): the cockpit forward, then the troop bay its one team rides in (the docking collar
             // on its flank opens off it) and does not train in, and engineering astern.
             [ShipClass.AssaultShuttle] = new[]
@@ -652,7 +645,6 @@ namespace Unity.SpaceGod.Core
                 case ShipClass.Miner:
                 case ShipClass.Explorer:
                 case ShipClass.LaneTender: return 3;
-                case ShipClass.Breacher:
                 case ShipClass.AssaultShuttle:
                 case ShipClass.Gunship:
                 case ShipClass.Courier:

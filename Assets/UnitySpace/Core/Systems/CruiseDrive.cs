@@ -339,7 +339,6 @@ namespace Unity.SpaceGod.Core
             [ShipClass.Recon] = 1,
             [ShipClass.AssaultShuttle] = 2,
             [ShipClass.Courier] = 2,
-            [ShipClass.Breacher] = 2,
             [ShipClass.Gunship] = 2,
         };
 

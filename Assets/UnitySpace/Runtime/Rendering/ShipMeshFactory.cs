@@ -63,7 +63,6 @@ namespace Unity.SpaceGod.Rendering
                 case ShipClass.Miner: BuildHauler(b); break;
                 case ShipClass.Courier:
                 case ShipClass.Explorer: BuildCourier(b); break;
-                case ShipClass.Breacher: BuildBreacher(b); break;
                 case ShipClass.Fighter: BuildFighter(b); break;
                 case ShipClass.Gunship: BuildGunship(b); break;
                 case ShipClass.OreTug: BuildOreTug(b); break;
@@ -986,25 +985,40 @@ namespace Unity.SpaceGod.Rendering
             return mesh;
         }
 
-        /// <summary>A Breacher round (U.SPC-T466): a squat armoured troop round behind a massive fluted drill head, drawn stuck in
-        /// the hull it struck.</summary>
-        static void BuildBreacher(Builder b)
+        /// <summary>
+        /// A Breacher round (U.SPC-T466, U.SPC-T517): the bullet-shaped armoured round a Breacher bay fires, its team sealed
+        /// in the casing, a fluted drill head for a nose and the steering thrusters' nozzles at its base. Its own model, not
+        /// a ship's: drawn in flight and stuck in the hull it struck. One mesh per faction, built once.
+        /// </summary>
+        public static Mesh GetBreacherRound(Faction faction)
         {
-            b.Frustum(-0.45f, 0.1f, new Vector2(0.2f, 0.16f), new Vector2(0.24f, 0.2f), 0, b.Hull);
-            b.Box(new Vector3(0, 0.095f, -0.12f), new Vector3(0.1f, 0.05f, 0.18f), b.Hull);
-            b.Box(new Vector3(0, 0.11f, -0.08f), new Vector3(0.11f, 0.012f, 0.04f), b.Dark);
-            foreach (float side in new[] { -1f, 1f })
-                b.Box(new Vector3(side * 0.12f, 0, -0.15f), new Vector3(0.02f, 0.12f, 0.5f), b.Accent);
+            faction = Canon(faction);
+            if (RoundCache.TryGetValue(faction, out var mesh)) return mesh;
+            var b = new Builder(faction, WholeHull);
+            BuildBreacherRound(b);
+            mesh = b.ToMesh("BreacherRound_" + faction.Prefix);
+            RoundCache[faction] = mesh;
+            return mesh;
+        }
+
+        static readonly Dictionary<Faction, Mesh> RoundCache = new Dictionary<Faction, Mesh>();
+
+        static void BuildBreacherRound(Builder b)
+        {
+            // The casing: a round-section slug, a little fatter at the shoulder than at the base, with armour bands.
+            b.Frustum(-0.45f, 0.1f, new Vector2(0.2f, 0.2f), new Vector2(0.24f, 0.24f), 0, b.Hull);
+            foreach (float z in new[] { -0.3f, -0.08f })
+                b.Box(new Vector3(0, 0, z), new Vector3(0.255f, 0.255f, 0.03f), b.Accent);
             // The drill: a collar, then a long cone with fluting ridges.
             var steel = new Color(0.58f, 0.56f, 0.52f, 1f);
-            b.Box(new Vector3(0, 0, 0.12f), new Vector3(0.22f, 0.18f, 0.04f), b.Dark);
-            b.Frustum(0.14f, 0.5f, new Vector2(0.2f, 0.17f), new Vector2(0.015f, 0.015f), 0, steel);
+            b.Box(new Vector3(0, 0, 0.12f), new Vector3(0.22f, 0.22f, 0.04f), b.Dark);
+            b.Frustum(0.14f, 0.5f, new Vector2(0.2f, 0.2f), new Vector2(0.015f, 0.015f), 0, steel);
             for (int k = 0; k < 4; k++)
             {
                 float a = Mathf.PI * 0.5f * k + 0.4f;
                 b.Box(new Vector3(Mathf.Cos(a) * 0.06f, Mathf.Sin(a) * 0.05f, 0.27f), new Vector3(0.02f, 0.02f, 0.22f), new Color(0.42f, 0.4f, 0.37f, 1f));
             }
-            b.Box(new Vector3(0, 0, -0.43f), new Vector3(0.18f, 0.14f, 0.05f), b.Dark);
+            b.Box(new Vector3(0, 0, -0.43f), new Vector3(0.18f, 0.18f, 0.05f), b.Dark);
             b.Nozzle(new Vector3(-0.06f, 0, -0.46f), 0.035f, 0.04f);
             b.Nozzle(new Vector3(0.06f, 0, -0.46f), 0.035f, 0.04f);
         }
@@ -1073,7 +1087,7 @@ namespace Unity.SpaceGod.Rendering
         }
 
         /// <summary>A star fighter: a slim single-seat dogfighter, a glazed canopy, and twin forward
-        /// guns on stub wings -- smaller than either the Courier or the Breacher.</summary>
+        /// guns on stub wings -- smaller than the Courier.</summary>
         static void BuildFighter(Builder b)
         {
             b.Frustum(-0.42f, 0.47f, new Vector2(0.13f, 0.075f), new Vector2(0.012f, 0.012f), 0, b.Hull);

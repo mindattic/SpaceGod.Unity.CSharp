@@ -24,7 +24,7 @@ To add a way of flying: write an `IFlightModel` and its handling struct, then ca
 
 **Tunables are data.** Each model takes a `readonly struct` of handling numbers (for example `LightFighterHandling`) with a `Default`. When the settings registry (U.SPC-T431) lands, each field becomes a declared setting, and the model reads whatever value the registry holds.
 
-**The light/heavy fighter split** is made at the family level. The heavy fighter is the Gunship (U.SPC-T467), an armoured multi-crew hull with two crewed turrets and a spinal light railgun, built for brawling and anti-corvette work. It holds the heavy-fighter slots in patrol wings, escort wings (at the heavy hire fee) and the scene tour that the Breacher used to fill. The Fighter and Courier are the light fighters. The Breacher is not a fighter, and since U.SPC-T466 not a flown ship at all: it is a boarding round fired from a Breacher Bay, in a ballistic family of its own (see [Fired rounds](#fired-rounds-the-breacher)).
+**The light/heavy fighter split** is made at the family level. The heavy fighter is the Gunship (U.SPC-T467), an armoured multi-crew hull with two crewed turrets and a spinal light railgun, built for brawling and anti-corvette work. It holds the heavy-fighter slots in patrol wings, escort wings (at the heavy hire fee) and the scene tour that the Breacher used to fill. The Fighter and Courier are the light fighters. The Breacher is not a fighter, and not a ship at all: it is a boarding round fired from a Breacher Bay, with no ship class or flight family (see [Fired rounds](#fired-rounds-the-breacher)).
 
 | Class | Family | Model today |
 | --- | --- | --- |
@@ -34,7 +34,6 @@ To add a way of flying: write an `IFlightModel` and its handling struct, then ca
 | Assault shuttle (U.SPC-T486) | Bomber | `BomberFlightModel`: a heavy throttle and a weak strafe for coming alongside a prize (see `BoardingShuttles`) |
 | Courier | Light fighter | `LightFighterFlightModel` (new; see [Couriers](#couriers)) |
 | Gunship | Heavy fighter | Newtonian, until its own model lands |
-| Breacher (a fired round) | Ballistic | `BallisticFlightModel` (see [Fired rounds](#fired-rounds-the-breacher)) |
 | Freighter, Miner | Hauler | Newtonian, until its own model lands |
 | Carrier, Battleship, Cruiser, Destroyer (and the Command cruiser and Frigate) | Capital | `CapitalFlightModel`, each class on its own `CapitalHandling` (see [Capital ships](#capital-ships-black-flag-or-rebel-galaxy)) |
 
@@ -159,11 +158,11 @@ The Courier flies as a light fighter for now: it shares the free-aim controls an
 
 ## Fired rounds: the Breacher
 
-**Implemented** (U.SPC-T466, U.SPC-T521, `BallisticFlightModel` in `Core/Combat/FlightModels.cs`, `BreacherBays` in `Core/Combat/BreacherBays.cs`, tests in `Tests/Core.Tests/BreacherBayTests.cs`).
+**Implemented** (U.SPC-T466, U.SPC-T521, U.SPC-T517, `BreacherBays` in `Core/Combat/BreacherBays.cs`, its flight in `Battle.StepBreacher`, tests in `Tests/Core.Tests/BreacherBayTests.cs`).
 
-A Breacher is a whole marine team (70 by default) sealed in an armoured round and fired at high velocity from a Breacher Bay (the Assault Bay until U.SPC-T521). It is not a ship anyone flies. It belongs to the **Ballistic** family:
+A Breacher is a whole marine team (70 by default) sealed in an armoured round and fired at high velocity from a Breacher Bay (the Assault Bay until U.SPC-T521). It is only ever a round, never a ship (U.SPC-T517): it has no ship class, design, yard entry, crew or flight family, and it is drawn in the scene as its own bullet-shaped round model, in flight and stuck in the hull it struck. In flight:
 
-1. **It flies like a bullet.** It keeps the speed it was fired at (2.5 km/s past the firing ship's own by default). Throttle, boost, strafe and roll do nothing, and its nose stays along its track.
+1. **It flies like a bullet.** It keeps the speed it was fired at (2.5 km/s past the firing ship's own by default). Nothing drives it on or slows it, and its nose stays along its track.
 2. **Only a slight course correction.** Its thrusters bend the track toward the target by at most a small sideways push (0.02 km/s² by default). That is enough to follow a target that holds its course, but a hull that jinks hard after the round is fired is missed. A round that misses flies on and goes adrift with its team alive inside, for its side to recover after the fight (U.SPC-T519).
 3. **It strikes the first hostile hull in its path.** A shield holding more than a quarter of its strength turns it aside. Otherwise the drill bores in, the round stays stuck in the plating, and its team storms out into the compartment it struck. The ordinary compartment-by-compartment boarding fight takes over from there, and the target's own marines muster from their barracks to stop them.
 

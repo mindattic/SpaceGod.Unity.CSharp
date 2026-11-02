@@ -58,7 +58,6 @@ namespace Unity.SpaceGod.Core
             // Star fighters: Everspace 2-paced, a full about-face in a second or so. Cruise spools up
             // fast too -- small, nimble hulls should feel quick to get going in open space.
             [ShipClass.Courier] = new PilotTuning(0.45, 150, 2.2, 14, 10, 2.0),
-            [ShipClass.Breacher] = new PilotTuning(0.4, 110, 2.0, 22, 9, 2.2),
             // The heavy fighter (U.SPC-T467): a light fighter's pace less a little, stiffer in the turn, a longer boost.
             [ShipClass.Gunship] = new PilotTuning(0.4, 115, 2.0, 20, 9, 2.2),
             // The space superiority fighter, the dedicated dogfighter: trades a hair of the Courier's top
@@ -118,7 +117,6 @@ namespace Unity.SpaceGod.Core
                 case ShipClass.Recon:
                 case ShipClass.Courier:
                     return PilotControl.FreeAim;
-                case ShipClass.Breacher:
                 case ShipClass.Gunship:
                 case ShipClass.Bomber:
                 case ShipClass.GatePicket:

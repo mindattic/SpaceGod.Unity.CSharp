@@ -245,7 +245,6 @@ namespace Unity.SpaceGod.Core
                 case ShipClass.Bomber:
                 case ShipClass.Recon: return HullCategory.Fighter;
                 case ShipClass.Courier:
-                case ShipClass.Breacher:
                 case ShipClass.AssaultShuttle:
                 case ShipClass.GatePicket: return HullCategory.SmallCraft;
                 case ShipClass.Freighter:

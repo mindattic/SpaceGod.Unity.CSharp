@@ -48,9 +48,6 @@ namespace Unity.SpaceGod.Core.Tests
             Assert.That(reg.FamilyOf(ShipClass.Fighter), Is.EqualTo(FlightFamily.LightFighter));
             Assert.That(reg.FamilyOf(ShipClass.Courier), Is.EqualTo(FlightFamily.LightFighter));
             Assert.That(reg.FamilyOf(ShipClass.Gunship), Is.EqualTo(FlightFamily.HeavyFighter));
-            // The Breacher is a fired round now, not a heavy fighter (U.SPC-T466).
-            Assert.That(reg.FamilyOf(ShipClass.Breacher), Is.EqualTo(FlightFamily.Ballistic));
-            Assert.That(reg.For(ShipClass.Breacher), Is.InstanceOf<BallisticFlightModel>());
             Assert.That(reg.FamilyOf(ShipClass.Freighter), Is.EqualTo(FlightFamily.Hauler));
             Assert.That(reg.FamilyOf(ShipClass.Miner), Is.EqualTo(FlightFamily.Hauler));
             foreach (var c in new[] { ShipClass.Carrier, ShipClass.Battleship, ShipClass.Cruiser, ShipClass.Destroyer })

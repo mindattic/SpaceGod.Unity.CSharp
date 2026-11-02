@@ -62,7 +62,7 @@ namespace Unity.SpaceGod.Core.Tests
             // A carrier is a capital ship too, though its stock hull has no bow mount to put one in.
             Assert.That(TachyonLances.CanCarry(ShipClass.Carrier), Is.True);
 
-            foreach (var c in new[] { ShipClass.Cruiser, ShipClass.Destroyer, ShipClass.Breacher, ShipClass.Fighter, ShipClass.Freighter })
+            foreach (var c in new[] { ShipClass.Cruiser, ShipClass.Destroyer, ShipClass.Gunship, ShipClass.Fighter, ShipClass.Freighter })
             {
                 var ship = Hull(c, Navy);
                 var lc = Outfitting.LoadoutOf(ship);

@@ -658,32 +658,6 @@ namespace Unity.SpaceGod.Core
                     new SubsystemDef(SubsystemKind.Reactor, 0, 0, -0.3),
                 },
             } },
-            // The Breacher as it flew before U.SPC-T466, kept so a saved game's breachers still load and fight. Nothing builds
-            // one now: a Breacher is a round fired from a Breacher bay (BreacherBays, MissileKind.Breacher), not a ship.
-            [ShipClass.Breacher] = new[] { new CombatSpec
-            {
-                DesignName = "Breacher", LengthKm = 0.18,
-                MassKt = 120, MainThrustMN = 5400, RetroThrustMN = 4050, LateralThrustMN = 2700, VerticalThrustMN = 2700, PitchYawTorqueMNKm = 4150, RollTorqueMNKm = 1040,
-                Hull = 3000, Shield = 900, ShieldRegen = 15, Armor = 12, MaxSpeed = 0.3, Accel = 0.012, Decel = 0.014,
-                BoostSpeedMultiplier = 1.6, BoostDurationS = 22, TurnRateDegS = 18,
-                Crew = 20,
-                DryMassTonnes = 1800, PropellantTonnes = 900, ExhaustVelocityKmS = 3500,
-                Layout = new[]
-                {
-                    new SubsystemDef(SubsystemKind.Drill, 0, 0, 0.45),
-                    // A heavy forward gun to clear its way in, piloted the same way as any other forward-mounted gun.
-                    new SubsystemDef(SubsystemKind.HeavyLaser, 0, 0.03, 0.3, coneAxis: FireCones.Bow, coneHalfDeg: 25),
-                    new SubsystemDef(SubsystemKind.PointDefense, 0, 0.06, 0.05),
-                    // Its utility mount: an auto turret on the spine, covering it from fighters while it closes to latch (U.SPC-T278).
-                    new SubsystemDef(SubsystemKind.AutoTurret, 0, 0.06, -0.2),
-                    new SubsystemDef(SubsystemKind.Bridge, 0, 0.07, -0.1),
-                    new SubsystemDef(SubsystemKind.ShieldGenerator, 0, 0.05, 0.1),
-                    new SubsystemDef(SubsystemKind.ShieldGenerator, 0, 0.05, -0.3),
-                    new SubsystemDef(SubsystemKind.Engine, -0.06, 0, -0.46),
-                    new SubsystemDef(SubsystemKind.Engine, 0.06, 0, -0.46),
-                    new SubsystemDef(SubsystemKind.Reactor, 0, 0, -0.25),
-                },
-            } },
             [ShipClass.Courier] = new[] { new CombatSpec
             {
                 DesignName = "Courier", LengthKm = 0.08,

@@ -13,15 +13,14 @@ namespace Unity.SpaceGod.Core
         Miner,
         Courier,
 
-        /// <summary>A small assault ship with a drill prow: it rams a hull and disgorges marines. An assault craft, not a
-        /// fighter: the heavy fighter's roles are the <see cref="Gunship"/>'s (U.SPC-T467).</summary>
-        Breacher,
+        // Number 7 was the Breacher hull. A Breacher is only a round fired from a Breacher bay now, never a ship (U.SPC-T517,
+        // see BreacherBays and MissileKind.Breacher), so the number is left unused and the classes after it keep theirs.
 
         /// <summary>The space superiority fighter (docs/SHIP_ROSTER.md, U.SPC-T484): the balanced all-round workhorse
         /// of the strike craft, twin forward guns and a missile rack, built to escort capital ships and freighters
         /// and to dogfight -- the light fighter, beside the Courier, a trade hull that doubles as one. Carriers launch
         /// it as their fighter squadrons (<see cref="FighterRole.SpaceSuperiority"/>).</summary>
-        Fighter,
+        Fighter = 8,
 
         /// <summary>A deep-space explorer (U.SPC-T419): a long-legged survey hull built to leave the gate network under its
         /// own FTL drive and chart the stars nobody has been to. Lightly armed, big enough for its drive, small next to a
@@ -219,7 +218,8 @@ namespace Unity.SpaceGod.Core
             new ShipClassSpec(ShipClass.Freighter, "Freighter", 0.06, false),
             new ShipClassSpec(ShipClass.Miner, "Ore hauler", 0.06, false),
             new ShipClassSpec(ShipClass.Courier, "Courier", 1.2, false),
-            new ShipClassSpec(ShipClass.Breacher, "Breacher", 0.5, true),
+            // The retired Breacher hull's number (U.SPC-T517): no class, so no spec.
+            null,
             new ShipClassSpec(ShipClass.Fighter, "Fighter", 1.0, true),
             new ShipClassSpec(ShipClass.Explorer, "Explorer", 0.6, false),
             new ShipClassSpec(ShipClass.Gunship, "Gunship", 0.7, true),

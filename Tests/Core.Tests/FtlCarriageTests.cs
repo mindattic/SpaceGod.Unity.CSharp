@@ -105,7 +105,7 @@ namespace Unity.SpaceGod.Core.Tests
             foreach (var c in new[] { ShipClass.Cruiser, ShipClass.Destroyer, ShipClass.Explorer })
                 Assert.That(FtlCarriage.BerthsOf(c), Is.EqualTo(0), c + " has no berths");
             // Fighters and small craft can be carried; haulers cannot; anything with a drive of its own needs no carrying.
-            foreach (var c in new[] { ShipClass.Fighter, ShipClass.Courier, ShipClass.Gunship, ShipClass.Breacher })
+            foreach (var c in new[] { ShipClass.Fighter, ShipClass.Courier, ShipClass.Gunship })
                 Assert.That(FtlCarriage.Carriable(Hull("x", c, Navy())), Is.True, c.ToString());
             foreach (var c in new[] { ShipClass.Freighter, ShipClass.Miner, ShipClass.Carrier, ShipClass.Explorer })
                 Assert.That(FtlCarriage.Carriable(Hull("x", c, Navy())), Is.False, c.ToString());
@@ -148,11 +148,11 @@ namespace Unity.SpaceGod.Core.Tests
             var destroyer = Hull("TNS Swift", ShipClass.Destroyer, navy);
             var explorer = Hull("Far Horizon", ShipClass.Explorer, navy);
             var fighters = Enumerable.Range(0, 6).Select(i => Hull("TNS Gnat " + i, ShipClass.Fighter, navy)).ToList();
-            var breacher = Hull("TNS Ram", ShipClass.Breacher, navy);
+            var gunship = Hull("TNS Ram", ShipClass.Gunship, navy);
             var freighter = Hull("Bulk", ShipClass.Freighter, navy);
             int room = FtlCarriage.BerthsOf(ShipClass.Battleship);
 
-            var aboard = FtlCarriage.Stow(new[] { explorer, destroyer, battleship }, fighters.Concat(new[] { breacher, freighter, destroyer }));
+            var aboard = FtlCarriage.Stow(new[] { explorer, destroyer, battleship }, fighters.Concat(new[] { gunship, freighter, destroyer }));
             // The battleship fills its berths, in order; the explorer and the destroyer have none; the freighter and the
             // destroyer are never carried in a berth (only a carrier clamps a destroyer to its hull, U.SPC-T473).
             Assert.That(aboard.Count, Is.EqualTo(room));
@@ -160,11 +160,11 @@ namespace Unity.SpaceGod.Core.Tests
             Assert.That(aboard.Values.All(v => v == battleship), Is.True);
             Assert.That(aboard.ContainsKey(freighter), Is.False);
             Assert.That(aboard.ContainsKey(destroyer), Is.False);
-            Assert.That(aboard.ContainsKey(breacher), Is.False, "no room left for a breacher");
+            Assert.That(aboard.ContainsKey(gunship), Is.False, "no room left for a gunship");
 
             // A carrier takes the whole wing.
             var carrier = Hull("TNS Bastion", ShipClass.Carrier, navy);
-            aboard = FtlCarriage.Stow(new[] { carrier }, fighters.Concat(new[] { breacher, freighter }));
+            aboard = FtlCarriage.Stow(new[] { carrier }, fighters.Concat(new[] { gunship, freighter }));
             Assert.That(aboard.Count, Is.EqualTo(7));
             Assert.That(aboard.ContainsKey(freighter), Is.False);
 

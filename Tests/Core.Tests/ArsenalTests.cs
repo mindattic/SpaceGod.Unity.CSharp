@@ -15,9 +15,15 @@ namespace Unity.SpaceGod.Core.Tests
     {
         const double StartJd = 2461324.0;
 
-        static Ship Hull(ShipClass c, Faction f, int id, ModuleKind? utility = null)
+        static Ship Hull(ShipClass c, Faction f, int id, ModuleKind? utility = null, bool spineTurret = false)
         {
             var spec = CombatSpec.Of(c);
+            if (spineTurret)
+            {
+                // An auto turret on the spine beside the hull's own guns, covering it from fighters (U.SPC-T278).
+                spec = spec.Clone();
+                spec.Layout = spec.Layout.Concat(new[] { new SubsystemDef(SubsystemKind.AutoTurret, 0, 0.06, -0.2) }).ToArray();
+            }
             if (utility is ModuleKind m)
             {
                 // The hull with its utility mount fitted with that module instead of its stock one.
@@ -28,12 +34,13 @@ namespace Unity.SpaceGod.Core.Tests
             return new Ship { Id = id, Name = f.Prefix + " " + c + id, Spec = ShipClassSpec.Of(c), Faction = f, Combat = new ShipCombat(spec, c) };
         }
 
-        static (Battle b, BattleUnit mine, BattleUnit theirs) Duel(ShipClass mine, ShipClass theirs, DVec3 theirPos, bool player = true, ModuleKind? utility = null)
+        static (Battle b, BattleUnit mine, BattleUnit theirs) Duel(ShipClass mine, ShipClass theirs, DVec3 theirPos, bool player = true, ModuleKind? utility = null,
+            bool spineTurret = false)
         {
             var blue = new Faction("Blue", "BLU", new Rgb(0, 0, 1)) { IsMilitary = true };
             var red = new Faction("Red", "RED", new Rgb(1, 0, 0)) { IsMilitary = true };
             var b = new Battle(0, 3, "Test", new DVec3(50000, 0, 0), StartJd, 1);
-            b.AddShip(Hull(mine, blue, 0, utility), 0, DVec3.Zero, DVec3.UnitX);
+            b.AddShip(Hull(mine, blue, 0, utility, spineTurret), 0, DVec3.Zero, DVec3.UnitX);
             b.AddShip(Hull(theirs, red, 1), 1, theirPos, -DVec3.UnitX);
             b.Units[0].PlayerControlled = player;
             return (b, b.Units[0], b.Units[1]);
@@ -215,7 +222,8 @@ namespace Unity.SpaceGod.Core.Tests
         [Test]
         public void AnAutoTurretOnTheHullFiresOnItsOwnAtAFighterWithNoTriggerHeld()
         {
-            var (b, me, them) = Duel(ShipClass.Breacher, ShipClass.Fighter, new DVec3(0.6, 0.6, 0));
+            // A courier with an auto turret bolted onto its spine (no stock hull carries one now the Breacher is only a round, U.SPC-T517).
+            var (b, me, them) = Duel(ShipClass.Courier, ShipClass.Fighter, new DVec3(0.6, 0.6, 0), spineTurret: true);
             var turret = me.Combat.Subsystems.Single(s => s.Kind == SubsystemKind.AutoTurret);
             Assert.That(turret.Def.Weapon, Is.SameAs(WeaponSpec.AutoTurret));
             me.PlayerFireHeld = false;
@@ -242,8 +250,10 @@ namespace Unity.SpaceGod.Core.Tests
             var destroyer = new Loadout(CombatSpec.Of(ShipClass.Destroyer), ShipClass.Destroyer, 0);
             int flak = destroyer.Slots.FindIndex(s => s.Stock == ModuleKind.FlakCannon);
             Assert.That(Outfitting.CanFit(destroyer, flak, ModuleKind.AutoTurret), Is.True);
-            Assert.That(new ShipCombat(CombatSpec.Of(ShipClass.Breacher), ShipClass.Breacher).Subsystems.Any(s => s.Kind == SubsystemKind.AutoTurret), Is.True,
-                "the Breacher is built with an auto turret on its utility mount");
+            var courier = new Loadout(CombatSpec.Of(ShipClass.Courier), ShipClass.Courier, 0);
+            courier.Fitted[courier.Slots.FindIndex(s => s.Type == MountType.Ballistic)] = ModuleKind.AutoTurret;
+            Assert.That(new ShipCombat(courier.Build(), ShipClass.Courier).Subsystems.Any(s => s.Kind == SubsystemKind.AutoTurret), Is.True,
+                "a small craft built with an auto turret on its gun mount carries it");
         }
 
         // ------------------------------------------------------------ missiles at fighters

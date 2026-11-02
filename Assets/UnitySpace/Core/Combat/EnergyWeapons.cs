@@ -179,7 +179,7 @@ namespace Unity.SpaceGod.Core
         static readonly Dictionary<ModuleKind, HashSet<ShipClass>> Roles = new Dictionary<ModuleKind, HashSet<ShipClass>>
         {
             [ModuleKind.PhaserArray] = new HashSet<ShipClass> { ShipClass.Destroyer, ShipClass.Cruiser },
-            [ModuleKind.PlasmaCannon] = new HashSet<ShipClass> { ShipClass.Battleship, ShipClass.Breacher, ShipClass.GateBreaker },
+            [ModuleKind.PlasmaCannon] = new HashSet<ShipClass> { ShipClass.Battleship, ShipClass.GateBreaker },
         };
 
         /// <summary>Lets hulls of <paramref name="cls"/> take <paramref name="module"/> (a new class taking up a weapon's role).</summary>

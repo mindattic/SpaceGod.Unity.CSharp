@@ -24,7 +24,7 @@ namespace Unity.SpaceGod.Core.Tests
             var expected = new (ShipClass cls, double marines)[]
             {
                 (ShipClass.Carrier, 320), (ShipClass.Battleship, 260), (ShipClass.Cruiser, 140), (ShipClass.Destroyer, 50),
-                (ShipClass.Freighter, 4), (ShipClass.Breacher, 70),
+                (ShipClass.Freighter, 4),
                 // A boarding shuttle's team rides in its troop bay (U.SPC-T486).
                 (ShipClass.AssaultShuttle, 24),
                 // The command cruiser (U.SPC-T477) quarters a small marine guard for the flag.
@@ -43,9 +43,9 @@ namespace Unity.SpaceGod.Core.Tests
                 Assert.That(design.Marines, Is.EqualTo(FacilityLayouts.Complement(c, design)), c + ": the complement is its facilities' berths");
                 bool listed = expected.Any(e => e.cls == c);
                 if (!listed) Assert.That(design.Marines, Is.EqualTo(0), c + " has no habitat and carries no marines");
-                // Every warship's marines live in a habitat; a Breacher round's team rides in its troop compartment (U.SPC-T466).
+                // Every warship's marines live in a habitat; a boarding shuttle's team rides in its troop bay (U.SPC-T486).
                 bool habitat = FacilityLayouts.For(c).Any(s => s.Kind == FacilityKinds.MarineHabitat);
-                Assert.That(habitat, Is.EqualTo(listed && c != ShipClass.Breacher && c != ShipClass.AssaultShuttle), c.ToString());
+                Assert.That(habitat, Is.EqualTo(listed && c != ShipClass.AssaultShuttle), c.ToString());
             }
         }
 
@@ -62,7 +62,7 @@ namespace Unity.SpaceGod.Core.Tests
 
             foreach (var c in new[] { ShipClass.Destroyer, ShipClass.Cruiser, ShipClass.Battleship, ShipClass.Carrier, ShipClass.Freighter, ShipClass.LaneTender })
                 Assert.That(MarineHabitats.CanCarry(HullFrames.ForClass(c)), Is.True, c.ToString());
-            foreach (var c in new[] { ShipClass.Fighter, ShipClass.Interceptor, ShipClass.Bomber, ShipClass.Gunship, ShipClass.Courier, ShipClass.Breacher })
+            foreach (var c in new[] { ShipClass.Fighter, ShipClass.Interceptor, ShipClass.Bomber, ShipClass.Gunship, ShipClass.Courier })
             {
                 Assert.That(MarineHabitats.CanCarry(HullFrames.ForClass(c)), Is.False, c + " is too small for a habitat");
                 Assert.That(new ConstructionPlan(HullFrames.ForClass(c)).FitFacility(k), Is.EqualTo(ConstructionOutcome.WontFit), c.ToString());
@@ -144,11 +144,11 @@ namespace Unity.SpaceGod.Core.Tests
             Assert.That(interior.Training, Is.EqualTo(1), "fully trained, no further");
             Assert.That(interior.DrillFactor, Is.EqualTo(1 + MarineHabitats.DrillBonus.Value).Within(1e-9));
 
-            // No habitat, no drill: a Breacher round's team rides in its troop compartment, a fighter has none.
-            var breacher = new ShipCombat(CombatSpec.Of(ShipClass.Breacher), ShipClass.Breacher).Interior;
-            Assert.That(breacher.Marines, Is.EqualTo(70).Within(1e-9));
-            breacher.Drill(days);
-            Assert.That(breacher.Training, Is.EqualTo(0));
+            // No habitat, no drill: a boarding shuttle's team rides in its troop bay, a fighter has none.
+            var shuttle = new ShipCombat(CombatSpec.Of(ShipClass.AssaultShuttle), ShipClass.AssaultShuttle).Interior;
+            Assert.That(shuttle.Marines, Is.EqualTo(24).Within(1e-9));
+            shuttle.Drill(days);
+            Assert.That(shuttle.Training, Is.EqualTo(0));
 
             // Nor while the ship is being boarded.
             var boarded = new ShipCombat(CombatSpec.Of(ShipClass.Cruiser), ShipClass.Cruiser).Interior;

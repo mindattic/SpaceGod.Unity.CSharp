@@ -38,13 +38,8 @@ namespace Unity.SpaceGod.Core.Tests
         }
 
         [Test]
-        public void EveryHeavyFighterSlotIsAGunshipAndNoneABreacher()
+        public void EveryHeavyFighterSlotIsAGunship()
         {
-            for (int i = 0; i < 6; i++)
-            {
-                Assert.That(PatrolWings.Composition(i), Has.No.Member(ShipClass.Breacher), "patrol wing " + i);
-                Assert.That(PatrolWings.ConvoyEscort(i), Has.No.Member(ShipClass.Breacher), "convoy escort " + i);
-            }
             Assert.That(Enumerable.Range(0, 4).Select(PatrolWings.Composition).Count(c => c.Contains(ShipClass.Gunship)), Is.EqualTo(2),
                 "the heavy-fighter wing and the destroyer wing each fly a gunship (the lane picket flies an interdictor, U.SPC-T479)");
             Assert.That(Enumerable.Range(0, 2).Select(PatrolWings.ConvoyEscort).Count(c => c.Contains(ShipClass.Gunship)), Is.EqualTo(1));

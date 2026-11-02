@@ -314,35 +314,37 @@ namespace Unity.SpaceGod.Core.Tests
             Assert.That(b.Missiles.Any(m => m.Kind == MissileKind.Breacher), Is.False);
         }
 
-        // ---------------------------------------------------------------- no longer a flown class
+        // ---------------------------------------------------------------- only ever a round
 
         [Test]
-        public void TheBreacherIsAFiredRoundNotAFlownShip()
+        public void TheBreacherIsOnlyAFiredRoundNeverAShip()
         {
-            Assert.That(FlightModelRegistry.Default.FamilyOf(ShipClass.Breacher), Is.EqualTo(FlightFamily.Ballistic));
-
-            // At the helm the round coasts: no throttle, and the stick only bends its track a little.
-            var model = new BallisticFlightModel();
-            var s = PilotState.At(DVec3.Zero, new DVec3(2, 0, 0), DVec3.UnitX);
-            var input = new PilotInput { DesiredForward = DVec3.UnitY, Throttle = 1, Boost = true, StrafeRight = 1 };
-            var spec = CombatSpec.Of(ShipClass.Breacher);
-            for (int i = 0; i < 100; i++)
-                model.Step(ref s, null, HullDynamics.Of(spec), PilotTuning.Of(ShipClass.Breacher), input, DVec3.Zero, 0.1);
-            Assert.That(s.Vel.Length, Is.EqualTo(2).Within(1e-9), "the round sped up or slowed");
-            double turned = Math.Acos(Math.Min(1, s.Vel.Normalized.X)) * Astro.Rad2Deg;
-            Assert.That(turned, Is.GreaterThan(0).And.LessThan(10), "more than a slight correction in ten seconds");
-            Assert.That(DVec3.Dot(s.Forward, s.Vel.Normalized), Is.EqualTo(1).Within(1e-9), "its nose is along its track");
-
-            // No wing, patrol or raider band flies one.
-            for (int i = 0; i < 4; i++)
+            // No ship class, design, yard frame or crew: a Breacher exists only as the round a Breacher bay fires (U.SPC-T517).
+            Assert.That(Enum.GetNames(typeof(ShipClass)), Has.No.Member("Breacher"), "a Breacher ship class");
+            foreach (ShipClass c in Enum.GetValues(typeof(ShipClass)))
             {
-                Assert.That(PatrolWings.Composition(i), Has.No.Member(ShipClass.Breacher));
-                Assert.That(PatrolWings.ConvoyEscort(i), Has.No.Member(ShipClass.Breacher));
+                Assert.That(ShipClassSpec.Of(c).DisplayName, Is.Not.EqualTo("Breacher"), c.ToString());
+                foreach (var design in CombatSpec.DesignsOf(c))
+                    Assert.That(design.DesignName, Does.Not.Contain("Breacher"), c + " has a Breacher design");
             }
+            Assert.That(HullFrames.Catalogue.Where(f => f.Name.IndexOf("Breacher", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                                        f.Id.IndexOf("Breacher", StringComparison.OrdinalIgnoreCase) >= 0), Is.Empty,
+                "a yard can build a Breacher");
+            Assert.That((int)ShipClass.Fighter, Is.EqualTo(8), "the classes after the retired Breacher number kept theirs");
+
+            // In flight the round coasts: its thrusters only bend its track a little toward its target, and never speed it up.
+            var vel = new DVec3(2, 0, 0);
+            for (int i = 0; i < 100; i++)
+                vel = BreacherBays.Correct(vel, DVec3.UnitY, BreacherBays.SteerKmS2.Value, 0.1);
+            Assert.That(vel.Length, Is.EqualTo(2).Within(1e-6), "the round sped up or slowed");
+            double turned = Math.Acos(Math.Min(1, vel.Normalized.X)) * Astro.Rad2Deg;
+            Assert.That(turned, Is.GreaterThan(0).And.LessThan(10), "more than a slight correction in ten seconds");
+
+            // Raider bands take their prizes with rounds from a Breacher bay instead.
             var eph = new Ephemeris(BodyCatalog.CreateSolSystem());
             eph.Update(StartJd);
             var w = World.CreateDefault(eph, StartJd);
-            Assert.That(w.Fleet.Ships.Any(x => x.Spec.Class == ShipClass.Breacher), Is.False, "a breacher was raised as a ship");
+            Assert.That(w.Fleet.Ships.Any(x => x.Spec.DisplayName == "Breacher"), Is.False, "a breacher was raised as a ship");
             // A raider band's leader is the hull its lane interdictor (the escort fitted with a field projector) keeps station on.
             var leaders = w.Fleet.Ships.Where(x => x.Faction.IsPirate && w.Fleet.Ships.Any(e => e.Leader == x && LaneInterdictors.Carries(e))).ToList();
             Assert.That(leaders, Is.Not.Empty);

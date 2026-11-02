@@ -161,7 +161,7 @@ namespace Unity.SpaceGod.Core.Tests
         public void WarshipsInBattleAndPiratesDoNotCallForHelp()
         {
             Fight(Add(ShipClass.Cruiser, navy, Near, ShipRole.Patrol));
-            var raider = Add(ShipClass.Breacher, pirates, Near, ShipRole.Patrol);
+            var raider = Add(ShipClass.Gunship, pirates, Near, ShipRole.Patrol);
             Fight(raider);
             director.BountyRadiusKm = 0; // keep the raider's bounty out of this
             Tick(Jd);
@@ -214,7 +214,7 @@ namespace Unity.SpaceGod.Core.Tests
         public void RaidersLurkingAreReportedOnlyOnADangerousLane()
         {
             director.BountyRadiusKm = 0;
-            var r = Add(ShipClass.Breacher, pirates, Near, ShipRole.Patrol);
+            var r = Add(ShipClass.Gunship, pirates, Near, ShipRole.Patrol);
             r.Phase = ShipPhase.Lurk;
             r.LaneLeg = new LaneHop(lane, 3, 4);
             r.PhaseEndJd = Jd + 1;
@@ -628,7 +628,7 @@ namespace Unity.SpaceGod.Core.Tests
         public void AnAmbushIsNotBrokenByOneOfItsOwnBandButIsByAnotherBandsHull()
         {
             director.BountyRadiusKm = 0;
-            var r = Add(ShipClass.Breacher, pirates, Near, ShipRole.Patrol);
+            var r = Add(ShipClass.Gunship, pirates, Near, ShipRole.Patrol);
             r.Phase = ShipPhase.Lurk;
             r.LaneLeg = new LaneHop(lane, 3, 4);
             r.PhaseEndJd = Jd + 1;
@@ -638,11 +638,11 @@ namespace Unity.SpaceGod.Core.Tests
             var op = Expect.Single(director.Active);
             Assert.That(op.Kind, Is.EqualTo(OpportunityKind.PirateAmbush));
 
-            var escort = new Ship { Id = 998, Name = "Escort", Spec = ShipClassSpec.Of(ShipClass.Breacher), Faction = pirates, BandId = r.BandId };
+            var escort = new Ship { Id = 998, Name = "Escort", Spec = ShipClassSpec.Of(ShipClass.Gunship), Faction = pirates, BandId = r.BandId };
             Tick(Jd + 0.01, escort, Near);
             Assert.That(op.Engaged, Is.False, "one of this very band's own hulls doesn't count");
 
-            var otherBand = new Ship { Id = 994, Name = "Other raider", Spec = ShipClassSpec.Of(ShipClass.Breacher), Faction = pirates };
+            var otherBand = new Ship { Id = 994, Name = "Other raider", Spec = ShipClassSpec.Of(ShipClass.Gunship), Faction = pirates };
             Tick(Jd + 0.02, otherBand, Near);
             Assert.That(op.Engaged, Is.True, "an unrelated raider of the same clan does");
         }

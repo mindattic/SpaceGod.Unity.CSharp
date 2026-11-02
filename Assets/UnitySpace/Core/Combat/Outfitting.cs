@@ -358,7 +358,7 @@ namespace Unity.SpaceGod.Core
         /// <summary>The hulls flown as fighters, whose hardpoints are small.</summary>
         public static bool IsSmallCraft(ShipClass cls) =>
             cls == ShipClass.Fighter || cls == ShipClass.Interceptor || cls == ShipClass.Bomber || cls == ShipClass.Courier || cls == ShipClass.Gunship
-            || cls == ShipClass.Breacher || cls == ShipClass.Recon || cls == ShipClass.AssaultShuttle;
+            || cls == ShipClass.Recon || cls == ShipClass.AssaultShuttle;
 
         /// <summary>The type of hardpoint a part of the design becomes (that of the module it was built with, U.SPC-T508),
         /// or null if it is part of the hull (a bridge, a reactor).</summary>

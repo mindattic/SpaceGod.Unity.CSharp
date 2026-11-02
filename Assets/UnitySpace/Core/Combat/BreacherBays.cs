@@ -12,9 +12,10 @@ namespace Unity.SpaceGod.Core
     /// (<see cref="PowerMw"/>, <see cref="Loadout.FreePowerMw"/>), the crew to man it (<see cref="Crew"/>,
     /// <see cref="Loadout.FreeCrew"/>) and a Marine Habitat to supply the teams (<see cref="FacilityKind.Requires"/>). The
     /// yard's fitting screen shows those costs; navies design it into the hulls built for boarding (the gate breaker) and
-    /// fit it as a refit to their big hulls (<see cref="Outfitting.NavyFacilities"/>), raider leaders carry one. The round
-    /// flies like a bullet, with only a slight course correction (<see cref="SteerKmS2"/>, the ballistic flight family,
-    /// <see cref="BallisticFlightModel"/>), until it strikes a hull, drills in and lets its team out into the compartment it
+    /// fit it as a refit to their big hulls (<see cref="Outfitting.NavyFacilities"/>), raider leaders carry one. A Breacher is only
+    /// ever such a round, never a ship (U.SPC-T517): it has no ship class, design, yard entry or crew of its own, and is
+    /// drawn in the scene as its own bullet-shaped round model. The round flies like a bullet, with only a slight course
+    /// correction (<see cref="SteerKmS2"/>, <see cref="Correct"/>), until it strikes a hull, drills in and lets its team out into the compartment it
     /// hit, where the compartment-by-compartment boarding fight (<see cref="Interior"/>) takes over and the target's own
     /// marines try to stop them. It cannot get through a shield still holding more than a quarter of its strength, and a
     /// round that misses or glances off goes adrift with its team alive inside (U.SPC-T519, <see cref="DriftingRounds"/>). The bay
@@ -64,6 +65,9 @@ namespace Unity.SpaceGod.Core
             "Breacher impact", 300, 0, 2000, 25,
             "How much damage a Breacher round's drill does to the hull it strikes as it bores in.",
             v => v.ToString("0", CultureInfo.InvariantCulture), "breacher round drill impact damage");
+
+        /// <summary>How long a round is, km: a team's casing behind its drill head, what its model is drawn at (U.SPC-T517).</summary>
+        public const double RoundLengthKm = 0.06;
 
         /// <summary>A round's armour against point defence (a pod's is 40).</summary>
         public const double RoundHp = 400;

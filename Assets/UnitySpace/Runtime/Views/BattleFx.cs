@@ -562,7 +562,8 @@ namespace Unity.SpaceGod.Views
                 }
                 if (m.Kind == MissileKind.Breacher)
                 {
-                    // A Breacher round (U.SPC-T466): a big, hot slug in the firing side's colour with a long straight wake.
+                    // A Breacher round (U.SPC-T466): a big, hot slug in the firing side's colour with a long straight wake,
+                    // round its own round model (EmbeddedPods, U.SPC-T517).
                     var slug = Color.Lerp(c, new Color(1f, 0.85f, 0.6f), 0.5f);
                     Sprite(p, PixelSize(p, 9), slug * 1.6f, Shape.Radial);
                     Ribbon(Point(b, m.Pos - m.Vel * 1.5), p, 2.6f, slug * 0.55f);

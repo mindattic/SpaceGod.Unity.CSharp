@@ -91,7 +91,6 @@ namespace Unity.SpaceGod.Core.Tests
         [TestCase(ShipClass.Battleship)]
         [TestCase(ShipClass.Cruiser)]
         [TestCase(ShipClass.Destroyer)]
-        [TestCase(ShipClass.Breacher)]
         [TestCase(ShipClass.Gunship)]
         [TestCase(ShipClass.Fighter)]
         public void CarriesIsFalseForEveryGoodOnWarshipsAndCombatCraft(ShipClass cls) =>

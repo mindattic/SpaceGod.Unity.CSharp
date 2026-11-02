@@ -22,7 +22,6 @@ namespace Unity.SpaceGod.Core
         static readonly Dictionary<ShipClass, CargoHoldSpec> ByClass = new Dictionary<ShipClass, CargoHoldSpec>
         {
             [ShipClass.Courier] = new CargoHoldSpec(3, 3),
-            [ShipClass.Breacher] = new CargoHoldSpec(4, 3),
             [ShipClass.Fighter] = new CargoHoldSpec(2, 2),
             [ShipClass.Gunship] = new CargoHoldSpec(3, 2),
             [ShipClass.Interceptor] = new CargoHoldSpec(1, 2),

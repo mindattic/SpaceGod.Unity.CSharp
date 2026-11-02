@@ -475,7 +475,7 @@ namespace Unity.SpaceGod
             fighterViews = new FighterViews(this, systemRoot);
             laneView = new LaneView(this, systemRoot);
             gateView = new GateView(this, systemRoot);
-            embeddedPods = new EmbeddedPods(this);
+            embeddedPods = new EmbeddedPods(this, systemRoot);
             platformViews.Clear();
             entryGlows.Clear();
             Structures = new StructureViews(this, systemRoot);

@@ -63,7 +63,6 @@ namespace Unity.SpaceGod.Core.Tests
         public void PlasmaCannonsGoOnlyOnTheBrawlersWeaponMounts()
         {
             Assert.That(Takes(ShipClass.Battleship, ModuleKind.PlasmaCannon, MountType.Energy, HardpointSize.Large), Is.True);
-            Assert.That(Takes(ShipClass.Breacher, ModuleKind.PlasmaCannon, MountType.Energy, HardpointSize.Medium), Is.True, "the breacher's heavy laser mount");
             Assert.That(Takes(ShipClass.Battleship, ModuleKind.PlasmaCannon, MountType.Energy, HardpointSize.Small), Is.False, "too big for a point-defence mount");
             Assert.That(Takes(ShipClass.Battleship, ModuleKind.PlasmaCannon, MountType.Missile), Is.False, "an energy weapon, on no missile mount");
             Assert.That(Takes(ShipClass.Cruiser, ModuleKind.PlasmaCannon, MountType.Energy), Is.False);
@@ -214,12 +213,15 @@ namespace Unity.SpaceGod.Core.Tests
             Assert.That(p.Damage / p.Cooldown, Is.GreaterThan(WeaponSpec.Heavy.Damage / WeaponSpec.Heavy.Cooldown * 2), "devastating up close");
         }
 
-        /// <summary>What each plasma bolt the breacher landed did, pinned <paramref name="km"/> from its target.</summary>
+        /// <summary>What each plasma bolt a small hull landed did, pinned <paramref name="km"/> from its target.</summary>
         static double[] PlasmaHits(double km, int seed)
         {
-            // Small hulls, so where on each the bolt leaves and lands hardly moves the distance it crosses.
-            var mine = Hull(ShipClass.Breacher, Blue, 0);
-            Assert.That(Arm(mine, ModuleKind.PlasmaCannon), Is.GreaterThanOrEqualTo(0));
+            // Small hulls, so where on each the bolt leaves and lands hardly moves the distance it crosses: a gunship with a
+            // plasma cannon on a bow mount (no stock small hull takes one by role, U.SPC-T517).
+            var spec = CombatSpec.Of(ShipClass.Gunship).Clone();
+            spec.Layout = spec.Layout.Concat(new[] { new SubsystemDef(SubsystemKind.PlasmaCannon, 0, 0.03, 0.3, coneAxis: FireCones.Bow, coneHalfDeg: 25) }).ToArray();
+            var mine = new Ship { Id = 0, Name = Blue.Prefix + " plasma gunship", Spec = ShipClassSpec.Of(ShipClass.Gunship), Faction = Blue,
+                                  Combat = new ShipCombat(spec, ShipClass.Gunship) };
             var (b, me, them) = Fight(mine, Hull(ShipClass.Destroyer, Red, 1), km, seed);
             for (int i = 0; i < 600; i++)
             {

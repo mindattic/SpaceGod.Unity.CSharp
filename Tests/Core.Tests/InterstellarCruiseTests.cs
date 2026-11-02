@@ -80,7 +80,7 @@ namespace Unity.SpaceGod.Core.Tests
             Assert.That(CruiseDrives.Of(ShipClass.Explorer), Is.SameAs(CruiseDrives.Survey));
             // Cruisers and destroyers have no FTL of their own (U.SPC-T472): they go by the gates.
             foreach (var c in new[] { ShipClass.Cruiser, ShipClass.Destroyer, ShipClass.Fighter, ShipClass.Courier, ShipClass.Freighter,
-                                      ShipClass.Miner, ShipClass.Breacher, ShipClass.Gunship })
+                                      ShipClass.Miner, ShipClass.Gunship })
                 Assert.That(CruiseDrives.Of(c), Is.Null, c.ToString());
             // A new drive plugs in by registering it.
             var tug = new CruiseDriveSpec("Tug drive", 50, 1, 0.5);

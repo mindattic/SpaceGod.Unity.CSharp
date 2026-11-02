@@ -420,7 +420,7 @@ namespace Unity.SpaceGod.Core
             string payer = src.PirateHunters != null ? src.PirateHunters.Name : "Every port in the system";
             // The hunters' standing price on a raider captain. Whatever the law has posted for what they have actually
             // done is paid by the law on top (U.SPC-T63): in full for the captain alive, half on a scanned wreck.
-            double credits = s.Spec.Class == ShipClass.Breacher ? 400000 : 650000;
+            double credits = 650000;
             double posted = RoundThousand(src.PostedBounty(s));
             return new Opportunity
             {

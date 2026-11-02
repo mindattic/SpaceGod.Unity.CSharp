@@ -127,7 +127,7 @@ namespace Unity.SpaceGod.Core.Tests
                 Assert.That(HullFrames.ForClass(c).CanCarry(kind), Is.True, c + "'s frame takes it");
             }
             // ... and nothing smaller.
-            foreach (var c in new[] { ShipClass.Frigate, ShipClass.Corvette, ShipClass.Fighter, ShipClass.Gunship, ShipClass.Courier, ShipClass.Breacher, ShipClass.GatePicket, ShipClass.LaneTender, ShipClass.OreTug })
+            foreach (var c in new[] { ShipClass.Frigate, ShipClass.Corvette, ShipClass.Fighter, ShipClass.Gunship, ShipClass.Courier, ShipClass.GatePicket, ShipClass.LaneTender, ShipClass.OreTug })
                 Assert.That(HullFrames.ForClass(c).CanCarry(kind), Is.False, c + " is too small for its reactor load");
 
             // No stock design carries one: a hull is fitted out as an interdictor by choice.
@@ -239,7 +239,7 @@ namespace Unity.SpaceGod.Core.Tests
             var t = Create();
             var picket = Lurk(t, "Vigil", ShipClass.Destroyer, t.W.Sol, ShipClass.Destroyer);
             FitEscort(t, picket);
-            var raider = Ride(t, "Gutter Knife", ShipClass.Breacher, t.W.Pirates);
+            var raider = Ride(t, "Gutter Knife", ShipClass.Gunship, t.W.Pirates);
             var trader = Ride(t, "Honest Margin", ShipClass.Freighter, t.W.Independents);
             Assert.That(t.W.War.Targets(picket, raider), Is.True);
             Assert.That(t.W.War.Targets(picket, trader), Is.False, "lawful traffic is no business of the picket's");

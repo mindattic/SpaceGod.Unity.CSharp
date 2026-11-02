@@ -257,7 +257,7 @@ namespace Unity.SpaceGod.Core.Tests
 
             var w2 = CreateWorld();
             var b2 = new Battle(0, earth, "Battle of Earth", new DVec3(20000, 0, 0), StartJd, 1);
-            b2.AddShip(Hull(ShipClass.Breacher, w2.Pirates, 9001), 0, new DVec3(4, 0, 0), -DVec3.UnitX).PlayerControlled = true;
+            b2.AddShip(Hull(ShipClass.Gunship, w2.Pirates, 9001), 0, new DVec3(4, 0, 0), -DVec3.UnitX).PlayerControlled = true;
             b2.AddShip(Hull(ShipClass.Freighter, w2.Belt, 9002), 1, new DVec3(-4, 0, 0), DVec3.UnitX);
             w2.Law.OnBattleEnded(b2, StartJd);
             Assert.That(w2.Law.Player.Crimes.Single().Kind, Is.EqualTo(CrimeKind.Piracy));
@@ -473,7 +473,7 @@ namespace Unity.SpaceGod.Core.Tests
         public void GoodsBoughtAtAHavenAreStolenAndNoLawfulMarketTakesThem()
         {
             var w = CreateWorld();
-            var ship = Pilot(w, ShipClass.Breacher, w.Pirates);
+            var ship = Pilot(w, ShipClass.Gunship, w.Pirates);
             ship.Faction.Treasury = 1e12;
             var haven = w.Economy.Settlements.First(s => s.Name == "Blackwater");
             haven.Stock[(int)Good.Food] += 100;
