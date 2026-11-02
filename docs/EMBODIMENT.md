@@ -79,6 +79,16 @@ still flown by the pilot loop. Every other seat is held in one `EmbodimentSessio
 swinging the stick and the chase view following it. A seat that stops being embodiable (shot down,
 the fight over) returns the player to command, and the session's `EndedBecause` gives the reason.
 
+At a gun (U.SPC-T445) the eye is on the mount itself, looking down the barrel: the camera glides in from
+the chase and settles on the mount as it is drawn on its hull (the mount's own offset from the hull's
+centre, lifted a touch off the deck, through `SpaceCamera.PilotEye`), riding the hull as it moves. The
+mouse lays the gun (the mount traverses at its own rate, within its fire cone) and the left button fires
+it, every shot a real aimed one through `MountedTurret`. Backspace moves up from the gun to the helm of
+the hull it is mounted on (its `Host`, the `EmbodimentSession.MoveToHost` rule), which the pilot loop
+then flies. / also mans a gun on a station's defence platform when the station (or its ring, or its
+world) is selected while its defences are fighting; a platform's guns are mounted on the whole station
+(U.SPC-T447), so Backspace there moves up to it.
+
 Nothing pauses and nothing loads. Taking a seat drops the clock to real time, which is a speed and
 not a pause. The camera glides from seat to seat. Every seat not held stays under its own AI the
 whole time. When the player takes nothing, the galaxy runs fully on its own.
@@ -101,8 +111,6 @@ At the controls, its Back to command button does what P does.
 
 ## What follows (filed as `part-of U.SPC-T18`)
 
-* U.SPC-T445, a Runtime turret seat: pick a mount on the selected or flown hull, a turret camera at the mount, and
-  aim and fire from it.
 * U.SPC-T447, stations as embodiables: a station hull with its own pose. It does not move, but it can turn its
   guns and launch its craft.
 * U.SPC-T448, satellites as embodiables: an orbiting body you can turn and point (sensors, relays), with

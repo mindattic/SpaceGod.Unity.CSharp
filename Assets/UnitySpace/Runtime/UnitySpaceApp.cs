@@ -850,6 +850,8 @@ namespace Unity.SpaceGod
             // Take charge of anything, any time (U.SPC-T422): the next seat in the fight in view, or the next gun on the hull.
             if (i.CycleSeat != 0) CycleSeat(i.CycleSeat);
             if (i.ManGun) ManNextGun();
+            // At a gun mount (U.SPC-T445): up to the helm of the hull it is on.
+            if (i.MoveToHost && IsSeated) MoveSeatToHost();
             if (i.TogglePicker) TogglePicker();
         }
 

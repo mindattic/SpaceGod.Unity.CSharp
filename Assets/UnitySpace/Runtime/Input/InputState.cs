@@ -113,6 +113,10 @@ namespace Unity.SpaceGod.Input
         /// goes back up to the helm.</summary>
         public bool ManGun;
 
+        /// <summary>At a gun mount (U.SPC-T445): Backspace moves up from the gun to the helm of the hull it is mounted on
+        /// (in the strategy view Backspace is Home).</summary>
+        public bool MoveToHost;
+
         /// <summary>F9 (U.SPC-T446): the take-charge picker, every seat on the thing in hand and around the camera to click into.</summary>
         public bool TogglePicker;
 
@@ -262,6 +266,7 @@ namespace Unity.SpaceGod.Input
             Pilot = kb.pKey.wasPressedThisFrame;
             CycleSeat = kb.quoteKey.wasPressedThisFrame ? 1 : kb.semicolonKey.wasPressedThisFrame ? -1 : 0;
             ManGun = kb.slashKey.wasPressedThisFrame;
+            MoveToHost = kb.backspaceKey.wasPressedThisFrame;
             TogglePicker = kb.f9Key.wasPressedThisFrame;
             bool shifted = kb.leftShiftKey.isPressed || kb.rightShiftKey.isPressed;
             TunePhasers = kb.insertKey.wasPressedThisFrame && !shifted;
@@ -309,6 +314,7 @@ namespace Unity.SpaceGod.Input
             CycleSeat = 0;
             ThrottleStep = 0;
             ManGun = false;
+            MoveToHost = false;
             TogglePicker = false;
             TunePhasers = false;
             ToggleBoarding = false;

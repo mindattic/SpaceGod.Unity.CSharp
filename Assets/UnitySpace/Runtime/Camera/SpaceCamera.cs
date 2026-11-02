@@ -81,6 +81,11 @@ namespace Unity.SpaceGod.Cameras
         /// -- along a light fighter's crosshair, or swung about a capital ship by the mouse. Null follows the hull.</summary>
         public Quaternion? PilotView { get; set; }
 
+        /// <summary>While piloting: where the eye itself sits when it is not a chase behind the hull (U.SPC-T445) -- at a
+        /// manned gun mount, looking down its barrel along <see cref="PilotView"/>. Read each frame, so the eye rides the
+        /// hull as it moves; null keeps the chase. Cleared whenever a new chase begins or the focus is let go.</summary>
+        public Func<DVec3> PilotEye { get; set; }
+
         /// <summary>How fast the view catches up to <see cref="PilotView"/>: quick, since in free aim the
         /// crosshair is the middle of the screen and must stay under the mouse.</summary>
         const float PilotViewResponseHz = 30f;
@@ -283,6 +288,7 @@ namespace Unity.SpaceGod.Cameras
             FocusTarget = Target.None;
             PilotLocked = false;
             PilotView = null;
+            PilotEye = null;
             SetRotation(rotation);
             velocity = Vector3.zero;
             SetScenePosition(ScenePosition);
@@ -294,6 +300,7 @@ namespace Unity.SpaceGod.Cameras
         {
             FocusOn(target, radii);
             PilotLocked = true;
+            PilotEye = null;
         }
 
         public static double DefaultFraming(Target target)
@@ -393,6 +400,8 @@ namespace Unity.SpaceGod.Cameras
                     var lift = Rotation * Vector3.up;
                     ScenePosition += new DVec3(lift.x, lift.y, lift.z) * (zoom * chaseR * PilotViewLift);
                 }
+                // At a gun mount the eye is the mount's own, not a chase (U.SPC-T445).
+                if (PilotEye != null) ScenePosition = PilotEye();
                 CurrentSpeed = 0;
                 return;
             }
@@ -436,7 +445,7 @@ namespace Unity.SpaceGod.Cameras
                 var shipRotation = world.TargetRotation(FocusTarget);
                 var endDirV = shipRotation * Vector3.back;
                 dir = Vector3.Slerp(ToVector(startDir), endDirV, e).normalized;
-                lookAt = shipRotation;
+                lookAt = PilotEye != null && PilotView != null ? PilotView.Value : shipRotation;
             }
             else
             {
@@ -444,6 +453,12 @@ namespace Unity.SpaceGod.Cameras
                 lookAt = Quaternion.LookRotation(-dir, Up);
             }
             ScenePosition = target + new DVec3(dir.x, dir.y, dir.z) * dist;
+            // Gliding to a gun mount (U.SPC-T445): the glide ends at the mount's eye, not behind the hull.
+            if (PilotLocked && PilotEye != null)
+            {
+                var eye = PilotEye();
+                ScenePosition = ScenePosition + (eye - ScenePosition) * e;
+            }
             Rotation = Quaternion.Slerp(travelStartRotation, lookAt, SmootherStep(Mathf.Min(1f, travelT * 1.8f)));
 
             if (travelT >= 1f)

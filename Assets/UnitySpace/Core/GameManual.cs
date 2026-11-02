@@ -343,7 +343,12 @@ namespace Unity.SpaceGod.Core
                   "gate pickets, and send groups to clear raiders off their gates."),
                 T("Taking a seat in a fight",
                   "' jumps into the fight in view, ; and ' step through its seats, / mans a gun, P returns you to command with " +
-                  "the view and warp you had.")),
+                  "the view and warp you had."),
+                T("Manning a gun",
+                  "/ mans the next gun on the hull you fly or have selected, or on a station's defence platform when the station " +
+                  "is selected while its defences fight. The view sits on the mount, looking down the barrel: the mouse lays it " +
+                  "(a heavy gun swings slowly, and only within its arc) and the left button fires it. / again steps to the next " +
+                  "gun, Backspace moves up to the hull's helm, and P hands it back to its crew.")),
 
             new ManualChapter("The galaxy and travel", "Star systems, gates, lanes, FTL and the galaxy map", Keys(),
                 T("The systems",

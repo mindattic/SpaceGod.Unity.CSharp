@@ -8,7 +8,8 @@ namespace Unity.SpaceGod
     /// <summary>
     /// Take charge of anything, any time (U.SPC-T422, see docs/EMBODIMENT.md). From the strategy view, ' and ; jump
     /// straight into the next seat in the fight in view (a ship's helm, a launched fighter's or bomber's cockpit) and /
-    /// mans a gun on the hull flown or selected; P hands whatever is held back to its AI and returns to command, the
+    /// mans a gun on the hull flown or selected, or on a station's defence platform (U.SPC-T445: the eye at the mount, looking
+    /// down the barrel; Backspace moves up to the hull's helm); P hands whatever is held back to its AI and returns to command, the
     /// view and time warp the commander had. Nothing pauses and nothing loads: the clock runs on at real time while a
     /// seat is held, the camera glides from seat to seat, and every other seat goes on under its own AI. A ship's helm
     /// is flown by the existing pilot loop (<see cref="EnterPiloting"/>); every other seat is held by
@@ -77,6 +78,12 @@ namespace Unity.SpaceGod
             seatAim = ToVector(pose.Forward.SwapYZ).normalized;
             Clock.SetWarp(0);
             SpaceCamera.EnterPilotChase(SeatTarget(next), next is FighterSeat ? 7 : 2.5);
+            // A gun is laid from the mount itself (U.SPC-T445): the eye glides in to sit on it, looking down the barrel.
+            if (next is MountedTurret gun)
+            {
+                SpaceCamera.PilotView = Quaternion.LookRotation(seatAim, MountRoof(pose, seatAim));
+                SpaceCamera.PilotEye = () => MountEye(gun);
+            }
             ShowToast((next is FighterSeat ? "Flying " : "Manning ") + next.Name + ", " + Clock.Warp.Label + SeatKeys(next));
         }
 
@@ -84,7 +91,61 @@ namespace Unity.SpaceGod
             ? "  (mouse aims, W/S throttle, A/D Q/E strafe, Z/X roll, Shift boost, F flight assist, left mouse guns, right mouse " +
               "weapon group, 1 next group, T lock, 6 next weak point, Ctrl flares, 2 attack my target, 3 cover me, 4 form up, " +
               "5 engage at will, 7/8/9 power to weapons/shields/engines, 0 even power, ' ; next seat, P back to command)"
-            : "  (mouse lays it, left mouse fires, / next gun, P back to command)";
+            : "  (mouse lays it, left mouse fires, / next gun, Backspace up to the helm, P back to command)";
+
+        /// <summary>How far above its mount the eye at a gun sits, in hull radii: just clear of the barrel, so the shot
+        /// is seen leaving it and the hull's own plating does not fill the view.</summary>
+        const double MountEyeRise = 0.04;
+
+        /// <summary>
+        /// Where the eye sits at a manned gun (U.SPC-T445): on the mount, as drawn on its hull (the mount's own offset from
+        /// the hull's centre, at battle scale, from wherever the hull is drawn), lifted a touch off the deck.
+        /// </summary>
+        DVec3 MountEye(MountedTurret t)
+        {
+            var host = SeatTarget(t);
+            var mount = (t.Unit.PointOf(t.Mount.Def) - t.Unit.Pos).SwapYZ * BattleKmScale;
+            t.Unit.Basis(out _, out var up);
+            return TargetScene(host) + mount + up.SwapYZ * (TargetRadius(host) * MountEyeRise);
+        }
+
+        /// <summary>The roof of the view down a barrel: the mount's own (its hull's deck), or the view's up when the barrel
+        /// points straight along it.</summary>
+        Vector3 MountRoof(in EmbodimentPose pose, Vector3 aim)
+        {
+            var roof = ToVector(pose.Up.SwapYZ);
+            return Mathf.Abs(Vector3.Dot(roof.normalized, aim)) > 0.99f ? SpaceCamera.Rotation * Vector3.up : roof;
+        }
+
+        /// <summary>
+        /// Backspace at a gun mount (U.SPC-T445): up from the gun to what it is mounted on, its <see cref="IEmbodiable.Host"/>.
+        /// A ship's helm is then flown by the pilot loop, as any helm is (<see cref="TakeSeat"/>); any other host (a whole
+        /// station, U.SPC-T447) is taken through <see cref="EmbodimentSession.MoveToHost"/>, the view leaving the mount for
+        /// the chase about it.
+        /// </summary>
+        void MoveSeatToHost()
+        {
+            if (!(seat.Current is MountedTurret gun)) return;
+            if (gun.Host == null)
+            {
+                ShowToast("The " + gun.Unit.Name + " has no helm to take: / next gun, P back to command");
+                return;
+            }
+            if (gun.Host is ShipHelm)
+            {
+                TakeSeat(gun.Host);
+                return;
+            }
+            var host = gun.Host;
+            if (!seat.MoveToHost())
+            {
+                ShowToast("Can't take " + host.Name + ": " + (host.Blocker ?? "out of reach"));
+                if (!seat.Active) ReturnToCommand();
+                return;
+            }
+            SpaceCamera.PilotEye = null;
+            ShowToast("Holding " + host.Name + ", " + Clock.Warp.Label + "  (mouse lays its guns, left mouse fires, P back to command)");
+        }
 
         /// <summary>What the camera rides with at a seat: the craft itself, or the hull a gun is mounted on.</summary>
         static Target SeatTarget(IEmbodiable s)
@@ -112,6 +173,7 @@ namespace Unity.SpaceGod
                 ExitPiloting();
             }
             SpaceCamera.PilotView = null;
+            SpaceCamera.PilotEye = null;
             SpaceCamera.ExitFocus();
             if (!commandFocus.IsNone && !(commandFocus.IsShip && commandFocus.Ship.Destroyed) && !commandFocus.IsUnit)
                 SpaceCamera.FocusOn(commandFocus);
@@ -219,9 +281,10 @@ namespace Unity.SpaceGod
                 battle = Selected.Ship.Battle;
                 unit = battle.UnitOf(Selected.Ship);
             }
+            else unit = DefencePlatformAt(Selected, out battle);
             if (unit == null)
             {
-                ShowToast("Select a hull in a fight (or fly one) to man its guns");
+                ShowToast("Select a hull in a fight (or fly one), or a station whose defences are fighting, to man its guns");
                 return;
             }
             var guns = new List<IEmbodiable>(Embodiables.TurretsOn(World, battle, unit));
@@ -232,7 +295,7 @@ namespace Unity.SpaceGod
             }
             if (seat.Current is MountedTurret last && guns.IndexOf(last) == guns.Count - 1 && last.Host != null)
             {
-                TakeSeat(last.Host);
+                MoveSeatToHost();
                 return;
             }
             TakeSeat(Embodiables.Cycle(guns, seat.Current, 1));
@@ -332,6 +395,47 @@ namespace Unity.SpaceGod
         }
 
         /// <summary>
+        /// The defence platform fighting at what is selected (U.SPC-T445): a station's own when a station or ring is
+        /// selected, or any at the world selected, that still has a gun to man; null if none is in a fight there.
+        /// </summary>
+        BattleUnit DefencePlatformAt(Target t, out Battle battle)
+        {
+            battle = null;
+            if (t.IsUnit)
+            {
+                if (t.Unit.Kind != UnitKind.Platform) return null;
+                battle = t.Battle;
+                return t.Unit;
+            }
+            if (!(t.IsStructure || t.IsRing || t.IsBody)) return null;
+            var settlement = t.IsStructure ? t.Structure.Settlement : null;
+            // A gate fort stands out at the system's root: selecting the star finds it there.
+            BattleUnit any = null;
+            Battle anyBattle = null;
+            foreach (var b in World.War.Battles)
+            {
+                if (b.Over || b.Body != t.Body) continue;
+                foreach (var u in b.Units)
+                {
+                    if (u.Kind != UnitKind.Platform || !u.Present || u.Captured || (u.Platform == null && u.Fort == null)) continue;
+                    if (Embodiables.TurretsOn(b, u).Count == 0) continue;
+                    if (settlement != null && u.Platform == settlement)
+                    {
+                        battle = b;
+                        return u;
+                    }
+                    if (any == null)
+                    {
+                        any = u;
+                        anyBattle = b;
+                    }
+                }
+            }
+            battle = anyBattle;
+            return any;
+        }
+
+        /// <summary>
         /// One frame at a non-helm seat: the mouse swings the stick (and the view after it), W/S work a craft's throttle,
         /// the triggers go to what is held, and a seat that is lost (shot down, the fight over) returns the player to
         /// command, saying why. Runs after <see cref="UpdatePiloting"/>, which clears the view's aim each frame.
@@ -421,7 +525,8 @@ namespace Unity.SpaceGod
                 case FighterSeat f:
                     return f.Readout() + "  ·  ' ; next seat   P back to command";
                 case MountedTurret t:
-                    return "GUN  ·  " + t.Name + "  ·  " + (t.Mount.Cooldown > 0 ? "reloading" : "ready") + "  ·  / next gun   P back to command";
+                    return "GUN  ·  " + t.Name + "  ·  " + (t.Mount.Cooldown > 0 ? "reloading" : "ready") + "  ·  / next gun   " +
+                           (t.Host is ShipHelm ? "Backspace helm   " : t.Host != null ? "Backspace whole station   " : "") + "P back to command";
                 default:
                     return null;
             }
