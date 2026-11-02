@@ -88,9 +88,17 @@ namespace Unity.SpaceGod
 
         int pilotFrameBody;
 
+        /// <summary>What the helm flies (U.SPC-T449): the piloted hull's motion and the world's part in this frame,
+        /// flown by <see cref="ShipHelm.Control"/>; kept here across frames (and across hulls, a gate handing the
+        /// same session to the next).</summary>
+        readonly HelmFlight helmFlight = new HelmFlight();
+
+        /// <summary>The helm being flown, holding <see cref="helmFlight"/>; remade when the hull changes.</summary>
+        ShipHelm pilotHelm;
+
         /// <summary>The piloted hull's whole motion (position, velocity, attitude, spin, cruise ramp),
-        /// integrated by <see cref="PilotFlight.Step"/> every frame; the properties below are its parts.</summary>
-        PilotState pilot;
+        /// integrated by its helm every frame; the properties below are its parts.</summary>
+        ref PilotState pilot => ref helmFlight.State;
 
         DVec3 pilotOffsetKm { get => pilot.Pos; set => pilot.Pos = value; }
         DVec3 pilotVelKmS { get => pilot.Vel; set => pilot.Vel = value; }
@@ -101,9 +109,6 @@ namespace Unity.SpaceGod
         /// rolled, and it can point anywhere -- straight up, down or behind -- with no gimbal clamp.</summary>
         DVec3 pilotAim = DVec3.UnitX;
         static float PilotLookSensitivity => SpaceCamera.LookSensitivity;
-
-        /// <summary>A freighter's stick is slower: it is a heavy thing to point (U.SPC-T269).</summary>
-        const float HaulerLookFactor = 0.6f;
 
         /// <summary>The free-aim view's roof (see <see cref="PilotAim.Look"/>): it turns with the crosshair and
         /// follows the hull's roll, so the mouse stays screen-relative.</summary>
@@ -1071,7 +1076,7 @@ namespace Unity.SpaceGod
             Select(t);
             SpaceCamera.EnterPilotChase(t, 6);
             Clock.SetWarp(0);
-            ShowToast("Piloting " + ship.Name + ", " + Clock.Warp.Label + "  (P to release, . to speed up, Left-click to fire, T to lock a target, Z/X to roll, F flight assist, hold J to cruise)");
+            ShowToast("Piloting " + ship.Name + ", " + Clock.Warp.Label + "  (" + HelmControls.Of(ship).Hint + "; P to release, . to speed up, Left-click to fire, T to lock a target, Z/X to roll, F flight assist, hold J to cruise)");
             if (riding)
             {
                 BeginRide(ship, false);
@@ -1324,10 +1329,13 @@ namespace Unity.SpaceGod
 
             // The stick, one way per kind of hull (U.SPC-T269): a light fighter's mouse swings the view and the
             // hull turns after it, a heavy fighter's or freighter's turns the hull itself, and a capital ship
-            // is turned on the keys while the mouse looks around it.
+            // is turned on the keys while the mouse looks around it. Every role is flown through its ShipHelm, on the
+            // control set fitted to it (U.SPC-T449); this is only the input layer turning the player's hands into it.
+            if (pilotHelm == null || pilotHelm.Ship != ship) pilotHelm = new ShipHelm(World, ship) { Flight = helmFlight };
+            var controls = pilotHelm.Controls;
             var tuning = PilotTuning.Of(ship.Spec.Class);
             var hull = HullDynamics.Of(ship.Combat.Spec);
-            var control = PilotControlMode = PilotTuning.ControlOf(ship.Spec.Class);
+            var control = PilotControlMode = controls.Stick;
             var model = FlightModelRegistry.Default.For(ship.Spec.Class);
             var capital = model as CapitalFlightModel;
             // A capital's helm leads the nose by what its own swing needs (U.SPC-T499).
@@ -1349,7 +1357,7 @@ namespace Unity.SpaceGod
                     strafeRight = strafeUp = 0;
                     break;
                 default:
-                    float factor = control == PilotControl.Hauler ? HaulerLookFactor : 1f;
+                    float factor = (float)controls.LookFactor;
                     pilotAim = PilotAim.Nose(pilotAim, pilot.Forward, pilot.Up, lookRight * factor, lookUp * factor, leadRad);
                     break;
             }
@@ -1374,57 +1382,36 @@ namespace Unity.SpaceGod
             if (ship.Battle == null) pilotLockUnit = null;
             SpaceCamera.PilotLockTarget = pilotLockTarget;
 
-            var input = new PilotInput
+            // What the world does to the hull this frame, for the helm to fly in: the pull of the bodies near it, flight assist,
+            // drives knocked out by an interdiction pulse (U.SPC-T42), and a port's approach for a hauler's docking mode (U.SPC-T443).
+            helmFlight.Gravity = PilotGravity();
+            helmFlight.AssistOff = pilotFlightAssistOff;
+            helmFlight.DrivesDown = PilotStunSeconds > 0;
+            helmFlight.DockingApproach = PortApproach();
+            // The hull flies behind its helm (U.SPC-T449): its class's own flight model (U.SPC-T17, docs/FLIGHT_MODELS.md), on
+            // its own tanks, with what its role's controls add (a hauler's load, a capital's telegraph and weak-patch roll).
+            pilotHelm.Control(new EmbodimentInput
             {
-                DesiredForward = desiredForward,
-                Throttle = Mathf.Clamp(Input.Move.z, -1f, 1f),
-                StrafeRight = Math.Max(-1, Math.Min(1, strafeRight)),
-                StrafeUp = Math.Max(-1, Math.Min(1, strafeUp)),
-                Roll = Mathf.Clamp(Input.Roll, -1f, 1f),
+                Aim = desiredForward,
+                Throttle = Input.Move.z,
+                StrafeRight = strafeRight,
+                StrafeUp = strafeUp,
+                Roll = Input.Roll,
                 Boost = Input.Boost,
                 Cruise = Input.Cruise,
-                InCombat = ship.Battle != null,
-                FlightAssistOff = pilotFlightAssistOff,
+                Fine = Input.Slow,
                 // W and S ring a capital's engine telegraph a step at a time (U.SPC-T499).
                 TelegraphStep = Input.ThrottleStep,
-            };
-            // A hauler flies heavy on what it carries, and Ctrl inside a port's approach is docking mode (U.SPC-T443).
-            HaulerInput(ship, ref input, Input.Slow);
-            // An interdiction pulse has knocked the drives out (U.SPC-T42): no thrust, no turning, no boost or cruise
-            // until they come back; the hull drifts on what way it had, and the stick waits for them.
-            if (PilotStunSeconds > 0)
-            {
-                input.DesiredForward = pilot.Forward;
-                input.Throttle = input.StrafeRight = input.StrafeUp = input.Roll = 0;
-                input.Boost = input.Cruise = false;
-                input.FlightAssistOff = true;
-                input.TelegraphStep = 0;
-            }
-            // Ordered to roll the weak patches away (U.SPC-T502): the helm assist rolls the hull while the helmsman's hands
-            // are off the roll keys; the nose stays the helmsman's.
-            if (capital != null && !input.FlightAssistOff && Math.Abs(input.Roll) < 0.01 && ship.Battle != null
-                && ship.Battle.UnitOf(ship) is BattleUnit helmUnit && helmUnit.Broadside != null && helmUnit.Broadside.RollWeakPatches)
-                input.Roll = WeakPatches.HelmRoll(ship.Battle, helmUnit, pilot.Forward, pilot.Up,
-                    capital.PeakTurnRateDegS(hull) * capital.Handling.RollFactor, hull.RollAngularAccel, dt);
-            // Mirrors PilotFlight.Step's own "boosting" condition, read before Step drains the
-            // charge further this frame, purely to drive the camera's FOV kick below (a capital rung to Flank boosts too).
-            bool flank = capital != null && !input.FlightAssistOff && pilot.Telegraph == EngineTelegraph.Flank;
-            pilotBoosting = (input.Boost || flank) && tuning.BoostDurationS > 0 && ship.Combat.BoostFraction > 0;
-            var gravity = PilotGravity();
-            var posBefore = pilot.Pos;
-            var velBefore = pilot.Vel;
-            // Each family of craft flies by its own rules (U.SPC-T17, docs/FLIGHT_MODELS.md).
-            model.Step(ref pilot, ship.Combat, hull, tuning, input, gravity, dt);
-            HaulerReadout(model, hull, input);
+                // The trigger and the crosshair; UpdatePilotBattle below gates them on what the hull can fire right now.
+                Primary = Input.Fire && !ClickPanelOpen,
+                Secondary = Input.LookHeld && !ClickPanelOpen,
+            }, dt);
+            // The camera's FOV kick below, and the HUD's readouts.
+            pilotBoosting = helmFlight.Boosting;
+            HaulerReadout(helmFlight.Model, helmFlight.Hull, helmFlight.Input);
             PilotTelegraph = capital != null ? pilot.Telegraph : null;
             SpaceCamera.PilotView = PilotViewRotation(control);
-            // The drive runs on the ship's own tanks: every change of velocity its thrusters make (not gravity's
-            // pull, which is free) is paid for in reaction mass by the rocket equation, and a dry hull only coasts.
-            var pos = pilot.Pos;
-            var vel = pilot.Vel;
-            Propulsion.ApplyManoeuvre(ship, ref pos, ref vel, posBefore, velBefore + gravity * dt, dt);
-            pilot.Pos = pos;
-            pilot.Vel = vel;
+            var posBefore = helmFlight.PosBefore;
             // Hulls, stations, rocks and wreckage have volume: what the hull flies into, it hits (U.SPC-T60).
             if (!KeepPilotAboveSurfaces(ship)) return;
             if (!UpdatePilotCollisions(ship, posBefore, dt)) return;
@@ -1433,7 +1420,7 @@ namespace Unity.SpaceGod
             UpdatePilotBattle(ship, dt);
             // What the ship's own scanners make of everything else, and what everyone else can see of it: its drive is
             // lit whenever its thrusters changed its velocity beyond what gravity did this frame (U.SPC-T66).
-            bool burning = dt > 0 && (vel - (velBefore + gravity * dt)).Length / dt > PilotBurnKmS2;
+            bool burning = helmFlight.Burning;
             World.Sensors?.UpdatePilot(ship, Ephemeris.HelioAt(pilotFrameBody, Clock.Jd) + pilotOffsetKm, burning, Clock.Jd);
             // The law around the ship: trespass, and patrols that scan it or, if it is wanted, hail it to pay up.
             World.Holdings.PilotFrameBody = pilotFrameBody;
@@ -1538,9 +1525,6 @@ namespace Unity.SpaceGod
 
         static string HunterName(Pursuer g) =>
             "the " + g.Faction.Name + " " + g.Leader.Spec.Class.ToString().ToLowerInvariant() + " " + g.Leader.Name + (g.Ships.Count > 1 ? " and " + (g.Ships.Count - 1) + " more" : "");
-
-        /// <summary>Thrust, km/s^2, above which the piloted ship's drive shows as a burn on others' scanners (about 0.01 g).</summary>
-        const double PilotBurnKmS2 = 1e-4;
 
         /// <summary>The pull on the piloted hull of every body it is close to (see <see cref="PilotFlight.Gravity"/>),
         /// km/s² -- its own frame's body above all, but a moon or a neighbour too when it flies near one.</summary>

@@ -19,8 +19,9 @@ namespace Unity.SpaceGod
         /// by to deal with it (<see cref="NearPort"/>), welcome or not.</summary>
         public bool PilotInPortApproach { get; private set; }
 
-        /// <summary>Fills in the hauler's part of this frame's input: the load aboard, Ctrl, and the port's approach.</summary>
-        void HaulerInput(Ship ship, ref PilotInput input, bool fine)
+        /// <summary>Whether the hull is inside a port's approach this frame, for the helm to fly a hauler's docking mode in
+        /// (the load aboard and Ctrl are the helm's own, U.SPC-T449).</summary>
+        bool PortApproach()
         {
             PilotInPortApproach = false;
             foreach (var s in Economy.At(pilotFrameBody))
@@ -29,9 +30,7 @@ namespace Unity.SpaceGod
                     PilotInPortApproach = true;
                     break;
                 }
-            input.MassRatio = HaulerFlightModel.LadenRatio(ship);
-            input.Fine = fine;
-            input.DockingApproach = PilotInPortApproach;
+            return PilotInPortApproach;
         }
 
         /// <summary>After the hauler model has flown the frame: the stop point and docking mode, for the HUD.</summary>

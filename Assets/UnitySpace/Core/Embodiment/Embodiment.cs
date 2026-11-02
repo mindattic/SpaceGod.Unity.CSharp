@@ -53,6 +53,11 @@ namespace Unity.SpaceGod.Core
 
         /// <summary>The afterburner, held this frame, for things that move (U.SPC-T424).</summary>
         public bool Boost;
+
+        /// <summary>A ship's helm (U.SPC-T449, <see cref="ShipHelm"/>): the cruise key held, Ctrl held (fine control, a
+        /// hauler's docking mode in a port's approach), and the engine telegraph rung this frame (+1 ahead, -1 astern).</summary>
+        public bool Cruise, Fine;
+        public int TelegraphStep;
     }
 
     /// <summary>

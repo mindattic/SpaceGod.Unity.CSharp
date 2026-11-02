@@ -35,15 +35,19 @@ builds its own list.
 
 ## What implements it today
 
-* **`ShipHelm` (Kind `Ship`).** This is the existing ship piloting behind the interface with nothing
-  changed. Its eligibility check (`CanEmbody`), its starting frame (`FrameOf`), and its take-charge
-  and hand-back bookkeeping (`World.PilotedShip`, an escort cut loose from its formation, the war's
-  command handed over, a fighting hull's `BattleUnit` switched between the player and its crew) are
-  the code `UnitySpaceApp` already ran. They have been moved into Core, and the Runtime now calls
-  them. The hull's flight is still stepped by the Runtime's pilot loop (`PilotFlight.Step` and
-  `PilotTuning`) because per-class flight models are being reworked under U.SPC-T17. `ShipHelm.Control`
-  hands the trigger and the crosshair to the battle unit, as the pilot loop does now. Moving flight
-  behind `Control` is follow-up work, to be done once T17 has landed.
+* **`ShipHelm` (Kind `Ship`).** Every ship role is taken and flown through it (U.SPC-T449). Its
+  eligibility check (`CanEmbody`), its starting frame (`FrameOf`), and its take-charge and hand-back
+  bookkeeping (`World.PilotedShip`, an escort cut loose from its formation, the war's command handed
+  over, a fighting hull's `BattleUnit` switched between the player and its crew) live in Core. So does
+  the hull's flight: `ShipHelm.Control` flies the helm's `HelmFlight` (the hull's `PilotState`, plus what
+  the world does to it this frame: gravity, flight assist, drives knocked out, a port's approach) by the
+  class's own flight model (U.SPC-T17), adds what the role's controls add (a hauler's load and docking
+  mode, a capital's telegraph and weak-patch roll), and pays for every burn from the tanks. It also hands
+  the trigger and the crosshair to the battle unit. Each role's control set is a `HelmControls`
+  (`ShipHelm.Controls`): its `HelmRole` (fighter, escort, courier, freighter, miner, capital), its stick
+  (`PilotControl`), its mouse factor, and which role functions it has. The Runtime's pilot loop is only
+  the input layer (mouse and keys into an `EmbodimentInput`) and the world around the hull (surfaces,
+  collisions, the fight, the law, gates and lanes).
 * **`MountedTurret` (Kind `Turret`).** This is new. Any direct-fire gun mount (laser, heavy laser,
   autocannon, railgun, point defence, auto turret) on any `BattleUnit` can be taken: a ship's battery,
   a settlement's defence platform (today's stand-in for a station), or a gate fort. While it is held,
@@ -75,7 +79,7 @@ fight in view that is nearest the middle of the screen. After that, ' and ; step
 previous seat in the same fight. / mans the next gun on the hull being flown or the one selected, and
 after the last gun it goes back up to the hull's helm. P hands any seat back to its AI and returns to
 command, restoring the commander's time warp and whatever the camera was following. A ship's helm is
-still flown by the pilot loop. Every other seat is held in one `EmbodimentSession`, with the mouse
+held by the pilot loop, which flies it through `ShipHelm.Control`. Every other seat is held in one `EmbodimentSession`, with the mouse
 swinging the stick and the chase view following it. A seat that stops being embodiable (shot down,
 the fight over) returns the player to command, and the session's `EndedBecause` gives the reason.
 
@@ -115,9 +119,6 @@ At the controls, its Back to command button does what P does.
   guns and launch its craft.
 * U.SPC-T448, satellites as embodiables: an orbiting body you can turn and point (sensors, relays), with
   station-keeping thrust.
-* U.SPC-T449, every ship role at the helm: freighters, miners, couriers and escorts all flown through `ShipHelm`
-  with a sensible control set for their role, and ship flight moved behind `ShipHelm.Control` once
-  U.SPC-T17's per-class flight models have landed.
 
 ## Rules for a new kind
 

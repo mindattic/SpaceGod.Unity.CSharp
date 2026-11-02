@@ -140,6 +140,13 @@ namespace Unity.SpaceGod.Core
                   "time (Full Astern, Stop, Slow, Half, Full, Flank), turn best at Half and trace a turning circle; pitch, yaw " +
                   "and roll are all free, slow and heavy. Freighters, miners and the other work hulls fly heavy on what they " +
                   "carry. With assist off, every hull flies plain Newtonian."),
+                T("Every role at the helm",
+                  "Every ship can be flown, and each is flown with the controls its work wants. A fighter's mouse is its gunsight " +
+                  "(the hull turns after the crosshair, or the mouse turns the nose itself on a heavy fighter or bomber); a courier " +
+                  "flies a fighter's stick on the longest boost, to run rather than fight; an escort taken from a formation is cut " +
+                  "loose from it and flies as its class does; freighters and miners have a slower mouse, fly heavy on their load " +
+                  "and dock on Ctrl; capital ships ring the engine telegraph and turn on the keys while the mouse looks round. " +
+                  "Taking a helm names the role and its keys."),
                 T("Flying a hauler",
                   "A freighter or miner is heavy, and heavier laden: what is in its hold and its tanks slows its drive, its " +
                   "braking and its turn, so a full hull is noticeably slower than an empty one. Its retros are weak, and the " +

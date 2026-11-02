@@ -1,11 +1,15 @@
+using System;
+
 namespace Unity.SpaceGod.Core
 {
     /// <summary>
-    /// A ship's helm as an <see cref="IEmbodiable"/> (U.SPC-T18): the existing ship piloting behind the common
-    /// interface, unchanged. Who may take it, where it starts and the take-charge/hand-back bookkeeping
-    /// (<see cref="World.PilotedShip"/>, an escort cut loose, the war's command handed over, a fighting hull's
-    /// <see cref="BattleUnit"/> passed between player and crew) live here; the hull's flight is still stepped
-    /// by the Runtime pilot loop (<see cref="PilotFlight.Step"/>) until per-class flight models settle (U.SPC-T17).
+    /// A ship's helm as an <see cref="IEmbodiable"/> (U.SPC-T18): every ship role -- freighters, miners, couriers,
+    /// escorts, fighters and capital ships -- is taken and flown through it (U.SPC-T449). Who may take it, where it
+    /// starts and the take-charge/hand-back bookkeeping (<see cref="World.PilotedShip"/>, an escort cut loose, the war's
+    /// command handed over, a fighting hull's <see cref="BattleUnit"/> passed between player and crew) live here, and
+    /// so does the hull's flight: <see cref="Control"/> flies its <see cref="Flight"/> by its class's own flight model
+    /// (U.SPC-T17) on the control set fitted to its role (<see cref="Controls"/>), paying for every burn from its tanks.
+    /// What the world does around it (gravity, surfaces, collisions, the fight, the law) is the host's.
     /// </summary>
     public sealed class ShipHelm : IEmbodiable
     {
@@ -95,18 +99,98 @@ namespace Unity.SpaceGod.Core
             }
         }
 
+        /// <summary>The motion this helm flies (U.SPC-T449): given by whoever hosts the helm, which keeps it across frames.
+        /// With none, <see cref="Control"/> hands over only the trigger and the crosshair.</summary>
+        public HelmFlight Flight { get; set; }
+
+        /// <summary>The control set the hull is flown with, fitted to its role (U.SPC-T449).</summary>
+        public HelmControls Controls => HelmControls.Of(Ship);
+
         /// <summary>
-        /// The trigger and the crosshair go to the hull's battle unit. Its flight is the Runtime pilot loop's
-        /// (see the class summary).
+        /// One frame at the helm: the trigger and the crosshair go to the hull's battle unit, and the hull flies its
+        /// <see cref="Flight"/> on the stick (see <see cref="Fly"/>).
         /// </summary>
         public void Control(in EmbodimentInput input, double dt)
         {
             var unit = Unit;
-            if (unit == null || !unit.PlayerControlled) return;
-            unit.PlayerFireHeld = input.Primary;
-            unit.PlayerSecondaryHeld = input.Secondary;
-            unit.PlayerAim = input.Aim;
+            if (unit != null && unit.PlayerControlled)
+            {
+                unit.PlayerFireHeld = input.Primary;
+                unit.PlayerSecondaryHeld = input.Secondary;
+                unit.PlayerAim = input.Aim;
+            }
+            if (Flight != null && !Ship.Destroyed) Fly(Flight, input, dt);
         }
+
+        /// <summary>
+        /// Flies <paramref name="f"/> one frame (U.SPC-T449): the stick, in world terms (<paramref name="e"/>'s aim is
+        /// where the nose is wanted), through the hull's class's flight model (U.SPC-T17), on its own hull and tuning,
+        /// with what the role's controls add (a hauler's load and docking mode, a capital's telegraph and the helm assist
+        /// rolling its weak patches away), nothing at all while its drives are down; then every change of velocity its
+        /// thrusters made (not gravity's, which is free) is paid for from its tanks, and a dry hull only coasts.
+        /// </summary>
+        public void Fly(HelmFlight f, in EmbodimentInput e, double dt)
+        {
+            var ship = Ship;
+            var controls = Controls;
+            var tuning = PilotTuning.Of(ship.Spec.Class);
+            var hull = HullDynamics.Of(ship.Combat.Spec);
+            var model = FlightModelRegistry.Default.For(ship.Spec.Class);
+            var capital = model as CapitalFlightModel;
+            var input = new PilotInput
+            {
+                DesiredForward = e.Aim,
+                Throttle = Clamp1(e.Throttle),
+                StrafeRight = Clamp1(e.StrafeRight),
+                StrafeUp = Clamp1(e.StrafeUp),
+                Roll = Clamp1(e.Roll),
+                Boost = e.Boost,
+                Cruise = e.Cruise,
+                InCombat = ship.Battle != null,
+                FlightAssistOff = f.AssistOff,
+                TelegraphStep = controls.Telegraph ? e.TelegraphStep : 0,
+                // A hauler flies heavy on what it carries, and Ctrl inside a port's approach is docking mode (U.SPC-T443).
+                MassRatio = HaulerFlightModel.LadenRatio(ship),
+                Fine = e.Fine,
+                DockingApproach = f.DockingApproach,
+            };
+            if (f.DrivesDown)
+            {
+                input.DesiredForward = f.State.Forward;
+                input.Throttle = input.StrafeRight = input.StrafeUp = input.Roll = 0;
+                input.Boost = input.Cruise = false;
+                input.FlightAssistOff = true;
+                input.TelegraphStep = 0;
+            }
+            // Ordered to roll the weak patches away (U.SPC-T502): the helm assist rolls the hull while the helmsman's hands
+            // are off the roll keys; the nose stays the helmsman's.
+            if (capital != null && !input.FlightAssistOff && Math.Abs(input.Roll) < 0.01 && ship.Battle != null
+                && ship.Battle.UnitOf(ship) is BattleUnit helmUnit && helmUnit.Broadside != null && helmUnit.Broadside.RollWeakPatches)
+                input.Roll = WeakPatches.HelmRoll(ship.Battle, helmUnit, f.State.Forward, f.State.Up,
+                    capital.PeakTurnRateDegS(hull) * capital.Handling.RollFactor, hull.RollAngularAccel, dt);
+            // Read before the model drains the charge further this frame (a capital rung to Flank boosts too).
+            bool flank = capital != null && !input.FlightAssistOff && f.State.Telegraph == EngineTelegraph.Flank;
+            f.Boosting = (input.Boost || flank) && tuning.BoostDurationS > 0 && ship.Combat.BoostFraction > 0;
+
+            var gravity = f.Gravity;
+            var posBefore = f.State.Pos;
+            var velBefore = f.State.Vel;
+            model.Step(ref f.State, ship.Combat, hull, tuning, input, gravity, dt);
+            var pos = f.State.Pos;
+            var vel = f.State.Vel;
+            Propulsion.ApplyManoeuvre(ship, ref pos, ref vel, posBefore, velBefore + gravity * dt, dt);
+            f.State.Pos = pos;
+            f.State.Vel = vel;
+
+            f.Model = model;
+            f.Hull = hull;
+            f.Input = input;
+            f.PosBefore = posBefore;
+            f.VelBefore = velBefore;
+            f.Burning = dt > 0 && (vel - (velBefore + gravity * dt)).Length / dt > HelmFlight.BurnKmS2;
+        }
+
+        static double Clamp1(double v) => Math.Max(-1, Math.Min(1, v));
 
         /// <summary>
         /// The crew takes the helm back: a fighting hull's own AI (broadsides, point defence, missiles) picks
