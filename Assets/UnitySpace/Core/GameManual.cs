@@ -420,6 +420,12 @@ namespace Unity.SpaceGod.Core
                 T("Changing and resetting",
                   "Each change takes effect at once and is kept in your profile. Reset puts back one setting, a group or " +
                   "everything found."),
+                T("Post-processing (URP)",
+                  "On URP, Render pipeline's post-processing settings put URP's own Volume stack over the view: HDR, so the " +
+                  "star's face glares and blooms above white; exposure fixed, automatic or on a histogram (both adapt like an " +
+                  "eye, the histogram ignoring black space and the star's face), or a physical camera's ISO, shutter and " +
+                  "aperture against sunny 16; a tone curve (none, Neutral or ACES) and contrast, saturation and white balance. " +
+                  "Fresh profiles keep the image as drawn, only the star glaring. Post-processing off draws it with none."),
                 T("Display",
                   "Display has its own page: resolution, window mode and VSync."),
                 T("Profiles",

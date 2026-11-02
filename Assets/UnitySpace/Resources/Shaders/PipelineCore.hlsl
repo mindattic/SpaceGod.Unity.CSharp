@@ -38,9 +38,13 @@ float PipelineSunBrightness()
 
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
-// URP draws the shaders' colours as they are: no exposure, and the star as bright as it is drawn.
+// URP draws the shaders' colours as they are (its Volume stack exposes and grades them afterwards, U.SPC-T451). With
+// that stack on, the camera draws HDR and the URP backend sets the star's glare (RenderGlobals.SunBrightness) so its
+// face blooms above a lit surface's white; off, the global is 1 and the star is as bright as it is drawn.
+float _UnitySpaceSunBrightness;
+
 float4 PipelineExpose(float4 c) { return c; }
-float PipelineSunBrightness() { return 1.0; }
+float PipelineSunBrightness() { return _UnitySpaceSunBrightness > 0.0 ? _UnitySpaceSunBrightness : 1.0; }
 
 #endif
 
