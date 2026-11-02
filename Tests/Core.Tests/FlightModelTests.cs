@@ -262,5 +262,65 @@ namespace Unity.SpaceGod.Core.Tests
             Assert.That(runnerModel.TurnRateAt(tuning.MaxSpeed, tuning), Is.LessThan(lightModel.TurnRateAt(tuning.MaxSpeed, tuning)));
             Assert.That(runnerModel.GripAccel(tuning), Is.LessThan(lightModel.GripAccel(tuning) * 0.5));
         }
+
+        // ------------------------------------------------------------ the tuning pass (U.SPC-T440)
+
+        [Test]
+        public void OnTheBoostHeldRuleTheTurnStiffensOnlyWhileTheBoostFires()
+        {
+            var t = PilotTuning.Of(ShipClass.Fighter);
+            var h = LightFighterHandling.Default.WithTurnPenalty(TurnPenaltyRule.BoostHeld);
+            var model = new LightFighterFlightModel(h);
+            double boostSpeed = t.MaxSpeed * t.BoostSpeedMultiplier;
+            Assert.That(model.TurnRateAt(boostSpeed, t, false), Is.EqualTo(t.TurnRateDegS), "let go, the turn is full at any speed");
+            Assert.That(model.TurnRateAt(0, t, true), Is.EqualTo(t.TurnRateDegS * h.OverspeedTurnFactor).Within(1e-9), "boosting stiffens it at any speed");
+
+            // By speed (the default), the boost held makes no difference of itself.
+            var bySpeed = new LightFighterFlightModel();
+            Assert.That(bySpeed.TurnRateAt(0, t, true), Is.EqualTo(t.TurnRateDegS));
+            Assert.That(bySpeed.TurnRateAt(boostSpeed, t, false), Is.LessThan(t.TurnRateDegS));
+
+            // Flown: from rest, a boosted turn swings the nose slower than an unboosted one.
+            var free = new Rig(ShipClass.Fighter, model);
+            var burning = new Rig(ShipClass.Fighter, model);
+            free.Fly(new PilotInput { DesiredForward = -DVec3.UnitY, Throttle = 1 }, 0.01, 50);
+            burning.Fly(new PilotInput { DesiredForward = -DVec3.UnitY, Throttle = 1, Boost = true }, 0.01, 50);
+            Assert.That(AngleDeg(burning.S.Forward, DVec3.UnitX), Is.LessThan(AngleDeg(free.S.Forward, DVec3.UnitX)));
+        }
+
+        [Test]
+        public void TheGamesLightFightersFlyTheHandlingInTheSettingsMenu()
+        {
+            var reg = FlightModelRegistry.CreateDefault();
+            var fighter = (LightFighterFlightModel)reg.For(ShipClass.Fighter);
+            var h = fighter.Handling;
+            Assert.That(h.Grip, Is.EqualTo(LightFighterSettings.LightFighter.Grip.Value));
+            Assert.That(h.StrafeSpeedFraction, Is.EqualTo(LightFighterSettings.LightFighter.Strafe.Value));
+            Assert.That(h.CornerSpeedFraction, Is.EqualTo(LightFighterSettings.LightFighter.CornerSpeed.Value));
+            Assert.That(h.OverspeedTurnFactor, Is.EqualTo(LightFighterSettings.LightFighter.OverspeedTurn.Value));
+            Assert.That(LightFighterSettings.LightFighter.Grip.Default, Is.EqualTo(LightFighterHandling.Default.Grip));
+            Assert.That(LightFighterSettings.Interceptor.CornerSpeed.Default, Is.EqualTo(LightFighterHandling.Interceptor.CornerSpeedFraction));
+            Assert.That(LightFighterSettings.Runner.OverspeedTurn.Default, Is.EqualTo(LightFighterHandling.Runner.OverspeedTurnFactor));
+            Assert.That(SettingsRegistry.Default.Find("flight.lightFighter.grip"), Is.SameAs(LightFighterSettings.LightFighter.Grip));
+
+            double grip = LightFighterSettings.LightFighter.Grip.Value;
+            int rule = LightFighterSettings.TurnPenalty.Index;
+            try
+            {
+                LightFighterSettings.LightFighter.Grip.Set(1.5);
+                LightFighterSettings.TurnPenalty.Set((int)TurnPenaltyRule.BoostHeld);
+                Assert.That(fighter.Handling.Grip, Is.EqualTo(1.5), "a change in the menu takes hold at once");
+                Assert.That(fighter.Handling.TurnPenalty, Is.EqualTo(TurnPenaltyRule.BoostHeld));
+                Assert.That(((LightFighterFlightModel)reg.For(ShipClass.Courier)).Handling.TurnPenalty, Is.EqualTo(TurnPenaltyRule.BoostHeld),
+                    "one rule for every family on the light fighter's model");
+                Assert.That(((LightFighterFlightModel)reg.For(ShipClass.Interceptor)).Handling.Grip, Is.EqualTo(LightFighterSettings.Interceptor.Grip.Value),
+                    "each family keeps its own numbers");
+            }
+            finally
+            {
+                LightFighterSettings.LightFighter.Grip.Set(grip);
+                LightFighterSettings.TurnPenalty.Set(rule);
+            }
+        }
     }
 }

@@ -28,7 +28,8 @@ namespace Unity.SpaceGod.Core
         public DVec3 Pos, Vel;
         public DVec3 Forward = DVec3.UnitX;
 
-        /// <summary>How fast the AI is swinging the nose, rad/s about a world axis across it (U.SPC-T557, <see cref="Battle.TurnToward"/>).</summary>
+        /// <summary>How fast the AI is swinging the nose, rad/s about a world axis across it (U.SPC-T557, <see cref="Battle.TurnToward"/>);
+        /// for a crew in a dogfight, its flight model's spin (U.SPC-T440).</summary>
         public DVec3 TurnSpin;
 
         /// <summary>True while a human is flying this unit's <see cref="Ship"/> directly: <see cref="Battle.Move"/>
@@ -1191,9 +1192,11 @@ namespace Unity.SpaceGod.Core
 
         /// <summary>
         /// A light fighter flown by its crew in a dogfight: on the same airframe the player flies (its helm turn rate,
-        /// cut to <see cref="DogfightTurnShare"/>, and its own thrust), going where its nose points. It lays its nose on
-        /// the lead point for its guns and jinks on the way in; through the merge it extends under boost and comes round
-        /// again; with a hostile on its tail and pointed at it, it breaks hard to one side. It goes for the player first.
+        /// cut to <see cref="DogfightTurnShare"/>, and its own thrust) and through the same flight model, its class's
+        /// (<see cref="FlightModelRegistry.For"/>, U.SPC-T440), so it carves, corners and boosts as the player's would. It lays
+        /// its nose on the lead point for its guns and jinks on the way in; through the merge it extends under boost and comes
+        /// round again; with a hostile on its tail and pointed at it, it breaks hard to one side under boost. It goes for the
+        /// player first.
         /// </summary>
         void Dogfight(BattleUnit u, double dt)
         {
@@ -1202,9 +1205,9 @@ namespace Unity.SpaceGod.Core
             var tune = PilotTuning.Of(cls);
             var hull = HullDynamics.Of(c.Spec);
             double engines = 0.4 + 0.6 * c.EngineFactor;
-            double speed = tune.MaxSpeed * engines;
-            double turn = tune.TurnRateDegS * DogfightTurnShare * engines;
-            double accel = Math.Max(hull.MainAccel, 1e-3) * engines;
+            double top = tune.MaxSpeed * engines;
+            double speed = top;
+            bool boost = false;
 
             // The player first, if near enough to be worth the chase.
             foreach (var o in Units)
@@ -1233,11 +1236,11 @@ namespace Unity.SpaceGod.Core
                 case DogfightManeuver.Break:
                     // Hard over to one side and a little up, under boost.
                     goal = right * u.BreakSide + up * 0.35 + u.Forward * 0.2;
-                    speed *= tune.BoostSpeedMultiplier;
+                    boost = true;
                     break;
                 case DogfightManeuver.Extend:
                     goal = u.Forward + (t != null ? (u.Pos - t.Pos).Normalized * 0.4 : DVec3.Zero);
-                    speed *= tune.BoostSpeedMultiplier;
+                    boost = true;
                     if (t != null && (t.Pos - u.Pos).Length > ExtendKm) u.ManeuverLeft = 0;
                     break;
                 default:
@@ -1269,13 +1272,41 @@ namespace Unity.SpaceGod.Core
             }
             // Never out of the fight altogether: past most of the escape radius, it turns back in.
             if (u.Pos.Length > EscapeKm * 0.8) goal = goal.Normalized + (-u.Pos).Normalized * 1.5;
-            TurnToward(u, goal, turn, dt);
+            FlyCrewed(u, cls, tune, hull, engines, goal, top > 0 ? speed / top : 0, boost, dt);
+        }
 
-            var want = u.Forward * speed;
-            var dv = want - u.Vel;
-            double step = accel * dt;
-            u.Vel += dv.Length > step ? dv.Normalized * step : dv;
-            u.Pos += u.Vel * dt;
+        /// <summary>
+        /// One frame of a crew at the stick of <paramref name="u"/> (U.SPC-T440): its class's flight model (the one the player
+        /// flies it on) with flight assist on, the nose steered toward <paramref name="goal"/> at the crew's share of the helm
+        /// turn rate, the throttle at <paramref name="throttle"/> of top speed and the boost held on <paramref name="boost"/>
+        /// (drawing on the hull's own charge), all scaled by its engines.
+        /// </summary>
+        static void FlyCrewed(BattleUnit u, ShipClass cls, in PilotTuning tune, in HullDynamics hull, double engines, DVec3 goal, double throttle, bool boost, double dt)
+        {
+            var crew = new PilotTuning(tune.MaxSpeed * engines, tune.TurnRateDegS * DogfightTurnShare * engines, tune.BoostSpeedMultiplier,
+                tune.BoostDurationS, 1, 0);
+            var drives = new HullDynamics(hull.MassKt, hull.MainAccel * engines, hull.RetroAccel * engines, hull.LateralAccel * engines,
+                hull.VerticalAccel * engines, hull.PitchYawAngularAccel, hull.RollAngularAccel);
+            var f = u.Forward;
+            var up = u.Up - f * DVec3.Dot(u.Up, f);
+            var state = new PilotState
+            {
+                Pos = u.Pos, Vel = u.Vel, Forward = f,
+                Up = up.LengthSquared > 1e-12 ? up.Normalized : PilotState.LevelUp(f),
+                AngularVelocity = u.TurnSpin,
+            };
+            var input = new PilotInput
+            {
+                DesiredForward = goal.LengthSquared > 1e-12 ? goal.Normalized : DVec3.Zero,
+                Throttle = Math.Max(0, Math.Min(1, throttle)),
+                Boost = boost, InCombat = true,
+            };
+            FlightModelRegistry.Default.For(cls).Step(ref state, u.Combat, drives, crew, input, DVec3.Zero, dt);
+            u.Pos = state.Pos;
+            u.Vel = state.Vel;
+            u.Forward = state.Forward;
+            u.Up = state.Up;
+            u.TurnSpin = state.AngularVelocity;
         }
 
         /// <summary>A hostile close behind <paramref name="u"/> with its nose on it, or null.</summary>

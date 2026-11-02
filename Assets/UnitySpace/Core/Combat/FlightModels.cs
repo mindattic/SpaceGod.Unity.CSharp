@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 
 namespace Unity.SpaceGod.Core
 {
@@ -72,9 +73,22 @@ namespace Unity.SpaceGod.Core
             PilotFlight.Step(ref s, combat, hull, tuning, input, gravityKmS2, dt);
     }
 
+    /// <summary>What stiffens a light fighter's turn (U.SPC-T440, <see cref="LightFighterHandling.TurnPenalty"/>).</summary>
+    public enum TurnPenaltyRule
+    {
+        /// <summary>Speed alone: the turn tapers from the corner speed down to <see cref="LightFighterHandling.OverspeedTurnFactor"/>
+        /// at full boost speed, boost held or not, so a hull still carrying a boost's speed turns wide until it sheds it.</summary>
+        Speed,
+
+        /// <summary>Boost held, as a Star Conflict afterburner: the nose swings at <see cref="LightFighterHandling.OverspeedTurnFactor"/>
+        /// of its rate while the boost fires and at the full rate at any speed once it is let go.</summary>
+        BoostHeld,
+    }
+
     /// <summary>
     /// The light fighter's handling numbers (U.SPC-T17): data, not code, so a tuning pass or the settings
-    /// registry (U.SPC-T431) changes them without touching <see cref="LightFighterFlightModel"/>.
+    /// registry (U.SPC-T431) changes them without touching <see cref="LightFighterFlightModel"/>. The game's
+    /// light fighters, interceptors and runners read theirs from Settings > Dogfighting (<see cref="LightFighterSettings"/>, U.SPC-T440).
     /// </summary>
     public readonly struct LightFighterHandling
     {
@@ -99,13 +113,22 @@ namespace Unity.SpaceGod.Core
         /// between the corner speed and there it tapers linearly. Boost to get somewhere, ease off to turn.</summary>
         public readonly double OverspeedTurnFactor;
 
-        public LightFighterHandling(double grip, double strafeSpeedFraction, double cornerSpeedFraction, double overspeedTurnFactor)
+        /// <summary>Whether the turn penalty follows speed or the boost held (U.SPC-T440, see <see cref="TurnPenaltyRule"/>).</summary>
+        public readonly TurnPenaltyRule TurnPenalty;
+
+        public LightFighterHandling(double grip, double strafeSpeedFraction, double cornerSpeedFraction, double overspeedTurnFactor,
+            TurnPenaltyRule turnPenalty = TurnPenaltyRule.Speed)
         {
             Grip = grip;
             StrafeSpeedFraction = strafeSpeedFraction;
             CornerSpeedFraction = cornerSpeedFraction;
             OverspeedTurnFactor = overspeedTurnFactor;
+            TurnPenalty = turnPenalty;
         }
+
+        /// <summary>These numbers with the turn penalty following <paramref name="rule"/>.</summary>
+        public LightFighterHandling WithTurnPenalty(TurnPenaltyRule rule) =>
+            new LightFighterHandling(Grip, StrafeSpeedFraction, CornerSpeedFraction, OverspeedTurnFactor, rule);
 
         /// <summary>The first-pass numbers, for the owner's review (docs/FLIGHT_MODELS.md).</summary>
         public static readonly LightFighterHandling Default = new LightFighterHandling(
@@ -130,37 +153,57 @@ namespace Unity.SpaceGod.Core
     /// slide and a faster one only a little; (2) strafing is strong (<see cref="LightFighterHandling.StrafeSpeedFraction"/>); and (3) the
     /// nose swings fastest at or below the corner speed and stiffens above it, down to
     /// <see cref="LightFighterHandling.OverspeedTurnFactor"/> of the full rate at full boost, so speed is
-    /// something to manage in a fight. With flight assist off the hull is the Newtonian one, unchanged:
-    /// the drift and the turn-and-burn stay a pilot's tool.
+    /// something to manage in a fight (or, on <see cref="TurnPenaltyRule.BoostHeld"/>, only while the boost fires).
+    /// With flight assist off the hull is the Newtonian one, unchanged: the drift and the turn-and-burn stay a
+    /// pilot's tool. The player and the crews in a battle's dogfight (<see cref="Battle"/>, U.SPC-T274, U.SPC-T440)
+    /// fly the same model.
     /// </summary>
     public sealed class LightFighterFlightModel : IFlightModel
     {
-        public LightFighterHandling Handling { get; }
+        readonly Func<LightFighterHandling> handling;
+
+        /// <summary>The numbers it flies on now: fixed, or read from the settings each frame (<see cref="LightFighterSettings"/>).</summary>
+        public LightFighterHandling Handling => handling();
 
         public LightFighterFlightModel() : this(LightFighterHandling.Default) { }
 
         public LightFighterFlightModel(LightFighterHandling handling, string name = "Light fighter")
+            : this(() => handling, name) { }
+
+        /// <summary>A model that reads its numbers from <paramref name="handling"/> each frame, so a setting changed in the
+        /// menu takes hold at once (U.SPC-T440).</summary>
+        public LightFighterFlightModel(Func<LightFighterHandling> handling, string name = "Light fighter")
         {
-            Handling = handling;
+            this.handling = handling ?? throw new ArgumentNullException(nameof(handling));
             Name = name;
         }
 
         public string Name { get; }
 
-        /// <summary>The fastest the nose may swing at <paramref name="speedKmS"/>, deg/s (see the class remarks).</summary>
-        public double TurnRateAt(double speedKmS, in PilotTuning tuning)
+        /// <summary>The fastest the nose may swing at <paramref name="speedKmS"/> with the boost not firing, deg/s (see the class remarks).</summary>
+        public double TurnRateAt(double speedKmS, in PilotTuning tuning) => TurnRateAt(speedKmS, tuning, false);
+
+        /// <summary>The fastest the nose may swing at <paramref name="speedKmS"/>, deg/s, the boost firing or not
+        /// (<paramref name="boosting"/>; it counts only on <see cref="TurnPenaltyRule.BoostHeld"/>).</summary>
+        public double TurnRateAt(double speedKmS, in PilotTuning tuning, bool boosting) => TurnRateAt(Handling, speedKmS, tuning, boosting);
+
+        static double TurnRateAt(in LightFighterHandling h, double speedKmS, in PilotTuning tuning, bool boosting)
         {
-            double corner = tuning.MaxSpeed * Handling.CornerSpeedFraction;
+            if (h.TurnPenalty == TurnPenaltyRule.BoostHeld)
+                return boosting ? tuning.TurnRateDegS * h.OverspeedTurnFactor : tuning.TurnRateDegS;
+            double corner = tuning.MaxSpeed * h.CornerSpeedFraction;
             double top = tuning.MaxSpeed * Math.Max(1, tuning.BoostSpeedMultiplier);
             if (speedKmS <= corner || top <= corner) return tuning.TurnRateDegS;
             double t = Math.Min(1, (speedKmS - corner) / (top - corner));
-            return tuning.TurnRateDegS * (1 - t * (1 - Handling.OverspeedTurnFactor));
+            return tuning.TurnRateDegS * (1 - t * (1 - h.OverspeedTurnFactor));
         }
 
         /// <summary>The most the flight computer pushes across the nose with assist on, km/s² (see
         /// <see cref="LightFighterHandling.Grip"/>).</summary>
-        public double GripAccel(in PilotTuning tuning) =>
-            Handling.Grip * tuning.MaxSpeed * Handling.CornerSpeedFraction * tuning.TurnRateDegS * Astro.Deg2Rad;
+        public double GripAccel(in PilotTuning tuning) => GripAccel(Handling, tuning);
+
+        static double GripAccel(in LightFighterHandling h, in PilotTuning tuning) =>
+            h.Grip * tuning.MaxSpeed * h.CornerSpeedFraction * tuning.TurnRateDegS * Astro.Deg2Rad;
 
         public void Step(ref PilotState s, ShipCombat combat, in HullDynamics hull, in PilotTuning tuning, in PilotInput input, DVec3 gravityKmS2, double dt)
         {
@@ -171,17 +214,83 @@ namespace Unity.SpaceGod.Core
             }
             if (dt <= 0) return;
 
-            var turning = new PilotTuning(tuning.MaxSpeed, TurnRateAt(s.Vel.Length, tuning), tuning.BoostSpeedMultiplier,
+            var h = Handling;
+            // Firing this frame: held, with charge left (as PilotFlight.DriveMultiplier has it).
+            bool boosting = input.Boost && tuning.BoostDurationS > 0 && combat != null && combat.BoostFraction > 0;
+            var turning = new PilotTuning(tuning.MaxSpeed, TurnRateAt(h, s.Vel.Length, tuning, boosting), tuning.BoostSpeedMultiplier,
                 tuning.BoostDurationS, tuning.CruiseSpeedMultiplier, tuning.CruiseRampS);
             var forwardBeforeTurn = s.Forward;
             PilotFlight.Rotate(ref s, hull, turning, input, dt);
             double driveMult = PilotFlight.DriveMultiplier(ref s, combat, tuning, input, forwardBeforeTurn, dt);
 
-            double grip = GripAccel(tuning);
-            var thrust = PilotFlight.AssistThrust(s, hull, tuning, input, gravityKmS2, driveMult, dt, Handling.StrafeSpeedFraction,
+            double grip = GripAccel(h, tuning);
+            var thrust = PilotFlight.AssistThrust(s, hull, tuning, input, gravityKmS2, driveMult, dt, h.StrafeSpeedFraction,
                 Math.Max(hull.LateralAccel, grip), Math.Max(hull.VerticalAccel, grip));
             PilotFlight.Integrate(ref s, thrust, gravityKmS2, dt);
         }
+    }
+
+    /// <summary>
+    /// The light fighter's handling in Settings > Dogfighting (U.SPC-T440, the settings registry of U.SPC-T431): grip, strafe,
+    /// corner speed and the turn left at full boost for each family flying <see cref="LightFighterFlightModel"/> (the light
+    /// fighter, the interceptor and the runner), defaulting to their own <see cref="LightFighterHandling"/>, and one choice of
+    /// what stiffens the turn, shared by all three. The game's registry reads them every frame, so a change takes hold in
+    /// the player's hands and the crews' at once.
+    /// </summary>
+    [SettingsSource]
+    public static class LightFighterSettings
+    {
+        /// <summary>The <see cref="TurnPenaltyRule"/> options, in its order.</summary>
+        static readonly string[] TurnPenaltyOptions = { "By speed", "While boosting" };
+
+        public static readonly ChoiceSetting TurnPenalty = new ChoiceSetting("flight.lightFighter.turnPenalty", SettingGroups.Dogfighting,
+            "Light fighters: what stiffens the turn", TurnPenaltyOptions, (int)TurnPenaltyRule.Speed,
+            "By speed: past the corner speed the turn tapers off toward full boost speed, boost held or not. While boosting: the turn stiffens only while the boost fires (a Star Conflict afterburner) and is full at any speed once it is let go. Fighters, interceptors and couriers alike.",
+            "flight model handling light fighter interceptor courier runner boost afterburner turn corner");
+
+        /// <summary>The rule <see cref="TurnPenalty"/> names.</summary>
+        public static TurnPenaltyRule Rule => (TurnPenaltyRule)TurnPenalty.Index;
+
+        /// <summary>One family's four numbers.</summary>
+        public sealed class Family
+        {
+            public readonly RangeSetting Grip, Strafe, CornerSpeed, OverspeedTurn;
+
+            internal Family(string key, string label, string keywords, LightFighterHandling defaults)
+            {
+                string k = "flight." + key + ".";
+                string words = "flight model handling " + keywords;
+                Grip = new RangeSetting(k + "grip", SettingGroups.Dogfighting, label + ": grip", defaults.Grip, 0.25, 2, 0.05,
+                    "How hard flight assist pulls the track round after the nose. At 1 the track holds to the nose through the tightest turn at the corner speed; less slides wide, more carves tighter.",
+                    Times, words + " grip carve slide");
+                Strafe = new RangeSetting(k + "strafe", SettingGroups.Dogfighting, label + ": strafe", defaults.StrafeSpeedFraction, 0.1, 1, 0.05,
+                    "How fast it strafes, as a share of the forward speed it is set to.",
+                    Percent, words + " strafe dodge sideways");
+                CornerSpeed = new RangeSetting(k + "cornerSpeed", SettingGroups.Dogfighting, label + ": corner speed", defaults.CornerSpeedFraction, 0.2, 1, 0.05,
+                    "The speed, as a share of top speed, at or below which the nose swings at its full rate; above it the turn stiffens (when the turn stiffens by speed).",
+                    Percent, words + " corner speed turn");
+                OverspeedTurn = new RangeSetting(k + "overspeedTurn", SettingGroups.Dogfighting, label + ": turn at full boost", defaults.OverspeedTurnFactor, 0.2, 1, 0.05,
+                    "The share of the turn rate left at full boost speed (or while boosting, when the turn stiffens only then). 1 takes the penalty away.",
+                    Percent, words + " boost afterburner turn penalty");
+            }
+
+            /// <summary>The numbers as set now, with the shared turn penalty rule.</summary>
+            public LightFighterHandling Handling =>
+                new LightFighterHandling(Grip.Value, Strafe.Value, CornerSpeed.Value, OverspeedTurn.Value, Rule);
+        }
+
+        /// <summary>The Fighter's (<see cref="FlightFamily.LightFighter"/>).</summary>
+        public static readonly Family LightFighter = new Family("lightFighter", "Light fighters", "light fighter space superiority", LightFighterHandling.Default);
+
+        /// <summary>The interceptor's and the recon fighter's (<see cref="FlightFamily.Interceptor"/>).</summary>
+        public static readonly Family Interceptor = new Family("interceptor", "Interceptors", "interceptor recon", LightFighterHandling.Interceptor);
+
+        /// <summary>The Courier's (<see cref="FlightFamily.Runner"/>).</summary>
+        public static readonly Family Runner = new Family("runner", "Couriers", "courier runner blockade", LightFighterHandling.Runner);
+
+        static string Times(double v) => v.ToString("0.##", CultureInfo.InvariantCulture) + "x";
+
+        static string Percent(double v) => (v * 100).ToString("0", CultureInfo.InvariantCulture) + "%";
     }
 
     /// <summary>
@@ -711,12 +820,13 @@ namespace Unity.SpaceGod.Core
             r.Assign(ShipClass.Frigate, FlightFamily.Capital);
             r.Assign(ShipClass.Corvette, FlightFamily.Capital);
             r.Assign(ShipClass.GateBreaker, FlightFamily.Capital);
-            r.Register(FlightFamily.LightFighter, new LightFighterFlightModel());
-            r.Register(FlightFamily.Interceptor, new LightFighterFlightModel(LightFighterHandling.Interceptor, "Interceptor"));
+            // The light fighter's rules on the numbers in Settings > Dogfighting (U.SPC-T440).
+            r.Register(FlightFamily.LightFighter, new LightFighterFlightModel(() => LightFighterSettings.LightFighter.Handling));
+            r.Register(FlightFamily.Interceptor, new LightFighterFlightModel(() => LightFighterSettings.Interceptor.Handling, "Interceptor"));
             r.Register(FlightFamily.Bomber, new BomberFlightModel());
             // Heavy fighters (U.SPC-T441): the Gunship, and the gate picket flown nose-first like one.
             r.Register(FlightFamily.HeavyFighter, new HeavyFighterFlightModel());
-            r.Register(FlightFamily.Runner, new LightFighterFlightModel(LightFighterHandling.Runner, "Runner"));
+            r.Register(FlightFamily.Runner, new LightFighterFlightModel(() => LightFighterSettings.Runner.Handling, "Runner"));
             // Haulers (U.SPC-T443): freighters, miners and the other work hulls fly heavy on what they carry.
             r.Register(FlightFamily.Hauler, new HaulerFlightModel());
             // Capital ships (U.SPC-T499): one model, each class on its own handling.

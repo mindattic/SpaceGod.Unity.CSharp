@@ -122,7 +122,8 @@ namespace Unity.SpaceGod.Core
                   "sliding past a target or flipping end for end to brake. Near a world its gravity pulls on the hull."),
                 T("A flight model per family",
                   "Light fighters carve their track after the nose and turn tightest at their corner speed; interceptors push " +
-                  "that further; bombers are a steady torpedo platform. Heavy fighters (the gunship) turn at one stiff rate at " +
+                  "that further (their grip, strafe, corner speed and boost turn penalty, by speed or only while boosting, are " +
+                  "in Settings > Dogfighting, and enemy crews fly the same model); bombers are a steady torpedo platform. Heavy fighters (the gunship) turn at one stiff rate at " +
                   "any speed that starts and stops crisply, settle on the throttle and strafe through a short ease, and carry " +
                   "a boost through the target, bleeding it off over a couple of seconds. Capital ships ring an engine telegraph a step at a " +
                   "time (Full Astern, Stop, Slow, Half, Full, Flank), turn best at Half and trace a turning circle; pitch, yaw " +

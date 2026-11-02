@@ -72,6 +72,32 @@ namespace Unity.SpaceGod.Core.Tests
         }
 
         [Test]
+        public void ACrewFliesItsClasssOwnFlightModelBoostAndAll()
+        {
+            // U.SPC-T440: the crew's break goes through the light fighter's model, so it draws on the hull's own boost
+            // charge and never runs past the boost speed the player's would reach.
+            var b = NewBattle();
+            var ai = b.AddShip(Hull(ShipClass.Fighter, Red, 1), 1, DVec3.Zero, DVec3.UnitX);
+            var chaser = b.AddShip(Hull(ShipClass.Fighter, Blue, 0), 0, new DVec3(-1, 0, 0), DVec3.UnitX);
+            chaser.PlayerControlled = true;
+            ai.Vel = DVec3.UnitX * 0.3;
+            var tune = PilotTuning.Of(ShipClass.Fighter);
+            double fastest = 0;
+            for (int i = 0; i < 10; i++)
+            {
+                chaser.Pos = ai.Pos - ai.Forward * 1.0;
+                chaser.Forward = ai.Forward;
+                chaser.Vel = ai.Vel;
+                b.Advance(0.1);
+                fastest = Math.Max(fastest, ai.Vel.Length);
+            }
+            Assert.That(ai.Maneuver, Is.EqualTo(DogfightManeuver.Break));
+            Assert.That(ai.Combat.BoostFraction, Is.LessThan(1), "the break under boost drew nothing from the hull's charge");
+            Assert.That(fastest, Is.LessThanOrEqualTo(tune.MaxSpeed * tune.BoostSpeedMultiplier * 1.001), "faster than its boost could take it");
+            Assert.That(FlightModelRegistry.Default.For(ShipClass.Fighter), Is.InstanceOf<LightFighterFlightModel>());
+        }
+
+        [Test]
         public void AFighterThroughTheMergeExtendsAndComesBackRound()
         {
             var b = NewBattle();

@@ -50,9 +50,13 @@ The reference is Star Conflict's interceptors and fighters: fast, twitchy, arcad
 3. **Hard strafing.** Assist's strafe set point is 0.5 of the forward one, against 0.35 for the shared model, so a light fighter can sidestep fire.
 4. **Everything else stays shared.** That includes boost charge and drain, the cruise drive, the gravity near worlds, roll, and assist-off drift.
 
-First-pass numbers (`LightFighterHandling.Default`): grip 1.0, strafe 0.5, corner 0.6, overspeed turn 0.6. They are tuned for feel, and the review ticket is where they get tuned.
+First-pass numbers (`LightFighterHandling.Default`): grip 1.0, strafe 0.5, corner 0.6, overspeed turn 0.6. They are tuned for feel.
 
-Open for the review: whether the boost's turn penalty should apply only while boost is held (as a Star Conflict afterburner) instead of being based on speed alone, and whether AI dogfighters (`Battle`'s dogfight, U.SPC-T274) should fly through the same model so their behaviour matches what the player flies.
+**Tuning pass** (U.SPC-T440, `LightFighterSettings` in `Core/Combat/FlightModels.cs`, tests in `Tests/Core.Tests/FlightModelTests.cs` and `DogfightTests.cs`):
+
+- **The numbers are settings.** Each family on the light fighter's model has its grip, strafe, corner speed and turn at full boost in Settings > Dogfighting (`flight.lightFighter.*`, `flight.interceptor.*`, `flight.runner.*`), defaulting to its `LightFighterHandling` (`Default`, `Interceptor`, `Runner`). The game's registry reads them every frame, so a change takes hold in the player's hands and the crews' at once, and the owner can tune them in flight.
+- **What stiffens the turn is a choice** (`flight.lightFighter.turnPenalty`, `TurnPenaltyRule`), shared by all three families. *By speed* (the default, the first pass's behaviour) tapers the turn from the corner speed down to the turn-at-full-boost share at full boost speed, boost held or not, so a hull still carrying a boost's speed turns wide until it sheds it. *While boosting* is Star Conflict's afterburner: the turn is held to that share while the boost fires and is full at any speed once it is let go.
+- **Crews fly the same model.** A light fighter, interceptor or Courier flown by its crew in a battle's dogfight (`Battle.Dogfight`, U.SPC-T274) is stepped through its class's `IFlightModel` with flight assist on (`Battle.FlyCrewed`): the nose steered to the crew's goal at `DogfightTurnShare` of the helm turn rate, the throttle at the share of top speed it wants, and its breaks and extensions under the boost, drawing on the hull's own charge. Before, it flew a turn-and-accelerate approximation with an endless afterburner; now it carves, corners and runs dry exactly as the player's own would.
 
 ## Strike craft: interceptors, fighters and bombers
 
