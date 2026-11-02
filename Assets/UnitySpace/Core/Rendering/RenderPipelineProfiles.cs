@@ -133,9 +133,9 @@ namespace Unity.SpaceGod.Core
     public static class RenderShaders
     {
         public const string Planet = "Planet", Sun = "Sun", Glow = "Glow", Ring = "Ring", Ship = "Ship", Line = "Line",
-            Stars = "Stars", GasGiant = "GasGiant", Asteroids = "Asteroids", Fx = "Fx", Points = "Points";
+            Stars = "Stars", GasGiant = "GasGiant", Asteroids = "Asteroids", Fx = "Fx", Points = "Points", Sky = "Sky";
 
-        public static readonly IReadOnlyList<string> All = new[] { Planet, Sun, Glow, Ring, Ship, Line, Stars, GasGiant, Asteroids, Fx, Points };
+        public static readonly IReadOnlyList<string> All = new[] { Planet, Sun, Glow, Ring, Ship, Line, Stars, GasGiant, Asteroids, Fx, Points, Sky };
     }
 
     /// <summary>

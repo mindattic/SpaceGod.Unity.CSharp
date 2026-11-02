@@ -108,7 +108,18 @@ namespace Unity.SpaceGod.Core
                   "The simulation itself is the same at both."),
                 T("What is drawn",
                   "Orbits, labels, hyperlanes and satellites each toggle on their own. Far or small things fade from model to " +
-                  "simpler model, to icon, to one marker for a fleet, so the view stays readable at any distance.")),
+                  "simpler model, to icon, to one marker for a fleet, so the view stays readable at any distance."),
+                T("The sky",
+                  "Every system has a skybox behind it. Shift+K (or numpad *) moves the system in view on to the next sky and " +
+                  "Shift+Alt+K (or numpad /) back; each system keeps the sky you gave it, in your profile, Sol or any other. " +
+                  "Until you pick one, Sol shows the real sky (NASA's Deep Star Map, every star where it really is) and every " +
+                  "other system its own nebulae, made from its seed so the same star always looks the same. The skies: this " +
+                  "system's own nebulae; Real sky: NASA Deep Star Map; Real sky: ESO Milky Way panorama; Blue nebulae; Hazy " +
+                  "nebulae; Deep starfield; Ringed giant (8K panoramas from Space Spheremaps); and Bare starfield, the old black " +
+                  "sky with point stars. Settings > Graphics sets the default sky, its brightness and how finely seeded nebulae " +
+                  "are made. Your own 2:1 panoramas (.jpg or .png) dropped into the Skyboxes folder of the game's data folder " +
+                  "(on Windows %USERPROFILE%\\AppData\\LocalLow\\MindAttic\\Unity.SpaceGod\\Skyboxes) join the cycle as " +
+                  "'Your sky' the next time a game starts.")),
 
             new ManualChapter("Flying", "Taking a helm, the flight models, propellant, lanes and gates", Keys("HELM AND FLIGHT"),
                 T("Any ship, anywhere",

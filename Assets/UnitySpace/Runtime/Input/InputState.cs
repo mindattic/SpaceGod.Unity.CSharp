@@ -96,6 +96,10 @@ namespace Unity.SpaceGod.Input
         public bool WatchBattle;
         public bool ToggleLanes;
         public bool ToggleSatellites;
+
+        /// <summary>U.SPC-T595: Shift+K or numpad * moves the system in view on to its next skybox (+1); Shift+Alt+K or
+        /// numpad / back to the one before (-1).</summary>
+        public int CycleSky;
         public bool ToggleReorient;
         public bool CycleShips;
         public bool CycleBackward;
@@ -258,7 +262,11 @@ namespace Unity.SpaceGod.Input
             ToggleSpawn = kb.vKey.wasPressedThisFrame;
             WatchBattle = kb.bKey.wasPressedThisFrame;
             ToggleLanes = kb.nKey.wasPressedThisFrame;
-            ToggleSatellites = kb.kKey.wasPressedThisFrame;
+            bool skyShift = kb.leftShiftKey.isPressed || kb.rightShiftKey.isPressed;
+            bool skyAlt = kb.leftAltKey.isPressed || kb.rightAltKey.isPressed;
+            ToggleSatellites = kb.kKey.wasPressedThisFrame && !skyShift;
+            CycleSky = (kb.kKey.wasPressedThisFrame && skyShift && skyAlt) || kb.numpadDivideKey.wasPressedThisFrame ? -1
+                : (kb.kKey.wasPressedThisFrame && skyShift) || kb.numpadMultiplyKey.wasPressedThisFrame ? 1 : 0;
             ToggleReorient = kb.rKey.wasPressedThisFrame;
             CycleShips = kb.tabKey.wasPressedThisFrame;
             CycleBackward = CycleShips && Boost;
@@ -312,6 +320,7 @@ namespace Unity.SpaceGod.Input
             ToggleFtlAutopilot = ClearFtlCourse = false;
             CycleFtlTarget = 0;
             CycleSeat = 0;
+            CycleSky = 0;
             ThrottleStep = 0;
             ManGun = false;
             MoveToHost = false;

@@ -53,6 +53,9 @@ namespace Unity.SpaceGod
 
         /// <summary>The real main belt and Jupiter Trojans (JPL SBDB), drawn on the GPU (Sol only).</summary>
         public AsteroidBelt AsteroidBelt { get; private set; }
+
+        /// <summary>The skybox behind the system in view, kept per system (U.SPC-T595).</summary>
+        public SkyView Sky { get; private set; }
         public InputState Input { get; } = new InputState();
 
         public Target Selected { get; private set; } = Target.None;
@@ -393,7 +396,10 @@ namespace Unity.SpaceGod
 
             SetupCamera();
             worldRoot = new GameObject("World").transform;
-            Starfield.Create(worldRoot);
+            var starfield = Starfield.Create(worldRoot);
+            // The skybox behind every system (U.SPC-T595): the player's own panoramas join the catalogue first.
+            SkyView.DiscoverDropIns();
+            Sky = new SkyView(worldRoot, starfield);
             orbitSamples = new DVec3[257];
             orbitPoints = new Vector3[orbitSamples.Length];
 
@@ -495,6 +501,8 @@ namespace Unity.SpaceGod
             // A new system starts level with the ecliptic again (auto-reorient then swings to its own plane).
             SpaceCamera.SetUpFrame(Quaternion.identity);
             SpaceCamera.SetPose(SpaceCamera.ScenePosition, SpaceCamera.Rotation);
+            // Each system keeps its own sky (U.SPC-T595); the last one stays up until this one has loaded.
+            Sky?.Show(system.Name);
         }
 
         /// <summary>Hides the active system's views (between the stars) or shows them again.</summary>
@@ -611,6 +619,7 @@ namespace Unity.SpaceGod
         /// (and every galaxy map one opened) would leave its textures behind past this scene.</summary>
         void OnDestroy()
         {
+            Sky?.Dispose();
             Materials.DestroyAllOwned();
             hud?.DestroyOwnedTextures();
             pauseMenu.DestroyOwnedTextures();
@@ -678,6 +687,7 @@ namespace Unity.SpaceGod
             }
             UpdateClipPlanes(dt);
             UpdateStreaming(dt);
+            Sky.Update(dt);
             UpdateViews(dt);
             UpdateHover();
             HandleSelectionClicks();
@@ -833,6 +843,12 @@ namespace Unity.SpaceGod
             {
                 ShowSatellites = !ShowSatellites;
                 ShowToast(ShowSatellites ? "SATELLITES ON: constellations drawn" : "SATELLITES OFF  (K to show)");
+            }
+            // Shift+K / numpad * cycles the sky of the system in view, which keeps it (U.SPC-T595).
+            if (i.CycleSky != 0 && ActiveSystem != null)
+            {
+                var sky = Sky.Cycle(i.CycleSky);
+                ShowToast("SKY: " + sky.Name + "  (" + ActiveSystem.Name + " keeps it; Shift+K for the next)");
             }
             // The chase camera belongs to the pilot: nothing re-aims it at something else mid-flight.
             if (i.WatchBattle && !AtControls)

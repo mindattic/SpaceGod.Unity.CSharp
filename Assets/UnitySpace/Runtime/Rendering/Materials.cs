@@ -21,6 +21,7 @@ namespace Unity.SpaceGod.Rendering
         public static Shader Asteroids => Load(RenderShaders.Asteroids);
         public static Shader Fx => Load(RenderShaders.Fx);
         public static Shader Points => Load(RenderShaders.Points);
+        public static Shader Sky => Load(RenderShaders.Sky);
 
         static Shader Load(string name) => RenderBackend.Active.LoadShader(name);
 

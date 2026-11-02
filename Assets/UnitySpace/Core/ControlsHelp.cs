@@ -63,6 +63,7 @@ namespace Unity.SpaceGod.Core
                 L("L", "labels"),
                 L("N", "hyperlanes"),
                 L("K", "satellites"),
+                L("Shift+K  or  numpad *", "skybox: the next sky for the system in view, which keeps it (Shift+Alt+K or numpad / goes back)"),
                 L("Navigator", "STAR SYSTEMS: fly to another star (Esc to skip the trip)"),
                 L("Esc", "close panels / leave focus / deselect, then the pause menu")),
 
