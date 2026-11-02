@@ -72,6 +72,40 @@ returns the compartment to the roll. Nothing in the tactics layer has to change 
   and 0 hands the side back to auto-resolve. A hail still takes the number keys first, and the captain's helm orders
   wait while the panel is open.
 
+## Combined allied boarding (U.SPC-T392)
+
+Before this, one faction boarded a hull at a time. A second faction's pod, Breacher round, shuttle or airlock party
+was turned back, even when it was an ally on the same side (U.SPC-T247 returned those marines to their ship rather
+than lose them). Now allies fight the defenders together.
+
+* **Who may join** (`Interior.Admits`). Each landing gives the battle side its marines fight for. The first landing
+  sets the boarding's side (`Interior.BoarderSide`). After that, any faction on that side may land. A faction on the
+  other side is still refused, and so is a landing with no side given (salvage, and the unit tests).
+* **One party.** The boarders aboard are one pool in each compartment, under one set of orders. A player of any
+  faction in the party gives them (`BoardingCommand.FightFor`, `Interior.IsParty`). The party's quality is the
+  strength-weighted mean of everyone who landed, so the hull clears about as fast as the allies' combined strength
+  allows. The first faction to land leads (`Interior.Boarder`), and the logs and HUD name every ally.
+* **The record** (`Interior.Parties`). Each faction's marines landed and the strength they brought (marines times
+  quality). It is kept once the hull is taken, until it is handed over, so the claims can be settled.
+
+### The settlement (`Core/Combat/PrizeSettlement.cs`)
+
+The hull is not simply awarded to whoever led. The battle settles it in two parts, shared salvage rights for the
+cargo and a negotiation for the hull, before anyone disposes of the prize (`War.SettleJointPrize`):
+
+1. **Claims.** Each ally's claim is its strength committed, over everyone's, whether its marines lived or not. The
+   ally who took the losses breaking in is not cut out by the one who walked in afterwards.
+2. **The hold is shared.** The cargo is split by claim. Each partner's part is paid out at once: raiders get theirs
+   in their haven's stock, and a lawful faction is paid the prize price (0.8 of base). The keeper's part stays aboard.
+3. **The hull is negotiated.** The claimants are offered it largest claim first, with the first to land breaking a
+   tie. The first that can buy the others out from its treasury keeps it, paying each partner its claim's part of
+   the prize's worth (its price new, by the hull left, at `PrizeValueShare`, one half). The keeper then disposes of
+   it as a lone captor would: pressed into service, taken as a prize, looted or scuttled.
+4. **No one can pay.** The hull goes to the breakers for `BreakersShare` (a quarter) of its price, the raiders' rate.
+   That money is shared by claim, and the crew are taken as prisoners of the largest claimant.
+
+A boarding by one faction alone is no negotiation. It keeps everything, exactly as before.
+
 ## Later layers
 
 * Defender tools that only a commanded side has: venting a compartment the boarders hold (and losing any crew still

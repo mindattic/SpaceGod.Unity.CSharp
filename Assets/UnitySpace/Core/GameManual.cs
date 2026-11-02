@@ -290,6 +290,13 @@ namespace Unity.SpaceGod.Core
                   "bay. The fight goes compartment by compartment; holding the bridge and engineering takes the ship. While " +
                   "your hull is being boarded, or your marines are boarding, B opens the boarding panel: pick a compartment " +
                   "and push for it or muster on it, hold, or auto-resolve."),
+                T("Boarding with allies",
+                  "Marines of allied factions on the same side of a battle can board one hull together. They fight its " +
+                  "defenders as one party, as well as the mix of them who landed, and your orders from the boarding panel " +
+                  "command all of them. A faction on the other side still cannot land on a hull someone is boarding. Once the " +
+                  "hull is taken, each ally's claim is the fighting strength it sent aboard. The cargo is split by claim. The " +
+                  "hull goes to the largest claimant that can pay the others their share of its worth, and if none can, it " +
+                  "is sold to the breakers and the money is shared."),
                 T("Taking any seat",
                   "From the god view ' jumps into the nearest seat in the fight in view and ' and ; step through the rest; / " +
                   "mans the next gun. P hands the seat back to its AI.")),

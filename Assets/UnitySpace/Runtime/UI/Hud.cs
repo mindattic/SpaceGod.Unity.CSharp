@@ -2119,7 +2119,7 @@ namespace Unity.SpaceGod.UI
                     (combat.Disabled ? "  ·  DISABLED" : "")));
                 if (inside.UnderBoarding)
                 {
-                    lines.Add(("BOARDED", inside.Boarder.Name + ": " + inside.Boarders.ToString("0", CultureInfo.InvariantCulture) + " boarders hold " + inside.TakenCount + " of " + inside.Compartments.Count + " spaces"));
+                    lines.Add(("BOARDED", inside.BoarderNames + ": " + inside.Boarders.ToString("0", CultureInfo.InvariantCulture) + " boarders hold " + inside.TakenCount + " of " + inside.Compartments.Count + " spaces"));
                     foreach (var space in inside.Compartments) lines.Add(("  " + space.Name, SpaceText(space)));
                     if (inside.Log.Count > 0) lines.Add(("", inside.Log[inside.Log.Count - 1].Text));
                 }
@@ -3573,7 +3573,7 @@ namespace Unity.SpaceGod.UI
             float w = 560, h = 82 + inside.Compartments.Count * rowH;
             var r = Panel(new Rect((Screen.width - w) * 0.5f, Screen.height - h - 48, w, h));
             GUI.Label(new Rect(r.x + 12, r.y + 6, w - 24, 20), "BOARDING  ·  " + hull.Name.ToUpperInvariant() + "  ·  " +
-                (role == BoardingRole.Boarders ? "OUR MARINES ABOARD" : "REPELLING " + inside.Boarder.Name.ToUpperInvariant()), title);
+                (role == BoardingRole.Boarders ? "OUR MARINES ABOARD" : "REPELLING " + inside.BoarderNames.ToUpperInvariant()), title);
             for (int i = 0; i < inside.Compartments.Count; i++)
             {
                 var c = inside.Compartments[i];

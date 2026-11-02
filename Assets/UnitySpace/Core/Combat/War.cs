@@ -547,8 +547,10 @@ namespace Unity.SpaceGod.Core
                     world.PilotedShip = null;
                     u.PlayerControlled = false;
                 }
+                // Allies who boarded together take it together (U.SPC-T392): the log names them all.
+                string by = u.Combat.Interior.Joint ? u.Combat.Interior.BoarderNames : captor.Name;
                 if (u.Ship != null) world.Log(battle.StartJd + battle.Seconds / Astro.SecondsPerDay,
-                    $"{battle.Name}: {captor.Name} marines take the {u.Ship.Name}", WorldEventKind.Capture, Shown(battle));
+                    $"{battle.Name}: {by} marines take the {u.Ship.Name}", WorldEventKind.Capture, Shown(battle));
             };
             b.UnitSurrendered += (battle, u) =>
             {
@@ -719,6 +721,77 @@ namespace Unity.SpaceGod.Core
                 how = Steal(ship, captor, b, jd) ? "taken as a prize" : "scuttled";
             }
             world.Log(jd, $"The {ship.Name} is {how} by the {captor.Name}" + (prisoners >= 1 ? $", {prisoners:0} of its crew taken prisoner" : ""), WorldEventKind.Capture, Shown(b));
+        }
+
+        /// <summary>
+        /// A hull taken by allied factions boarding together (U.SPC-T392) is settled between them before anyone disposes
+        /// of it (<see cref="PrizeSettlement.Negotiate"/>): each partner's part of the cargo is paid out to it (raiders' into
+        /// their haven, a lawful faction's at the prize price), and the keeper buys its partners out of the hull from its
+        /// treasury, or, when none of them can, the hull goes to the breakers and the price is shared. Returns the faction
+        /// that keeps the hull, to dispose of it as a lone captor would (what is left of the hold its own share), or null
+        /// when it was sold. A boarding by one faction alone returns its captor untouched.
+        /// </summary>
+        Faction SettleJointPrize(Battle b, BattleUnit u, Faction captor, double jd)
+        {
+            var ship = u.Ship;
+            var inside = u.Combat?.Interior;
+            if (ship == null || ship.Destroyed || inside == null || !inside.Joint) return captor;
+            double price = Economy.HullPrice(ship.Spec.Class);
+            var good = ship.CargoGood;
+            var deal = PrizeSettlement.Negotiate(inside.Parties, price * ship.Combat.HullFraction * PrizeSettlement.PrizeValueShare,
+                price * PrizeSettlement.BreakersShare, ship.HasCargo ? ship.CargoTonnes : 0, f => f.Treasury);
+            string allies = inside.BoarderNames;
+            var parts = new List<string>();
+            foreach (var claim in deal.Claims)
+            {
+                // The keeper's part of the hold stays aboard for it; everyone else's is paid out now.
+                if (claim.Faction != deal.Keeper && claim.CargoTonnes > 0 && ship.HasCargo)
+                {
+                    double tonnes = Math.Min(claim.CargoTonnes, ship.CargoTonnes);
+                    if (claim.Faction.IsPirate) DeliverLoot(claim.Faction, good, tonnes, b);
+                    else claim.Faction.Treasury += tonnes * GoodInfo.Of(good).BasePrice * 0.8;
+                    ship.CargoTonnes -= tonnes;
+                }
+                if (claim.Faction != deal.Keeper && claim.HullPaid > 0)
+                {
+                    claim.Faction.Treasury += claim.HullPaid;
+                    if (deal.Keeper != null) deal.Keeper.Treasury -= claim.HullPaid;
+                }
+                parts.Add($"{claim.Faction.Name} {claim.Share * 100:0}%");
+            }
+            if (ship.HasCargo && ship.CargoTonnes <= 1e-6)
+            {
+                Economy.Release(ship);
+                ship.HasCargo = false;
+                ship.CargoDestination = null;
+                ship.Cargo = null;
+            }
+            string claims = string.Join(", ", parts);
+            if (deal.Keeper != null)
+            {
+                world.Log(jd, $"The {allies} settle the {ship.Name} between them ({claims}): the {deal.Keeper.Name} keep the hull, buying out their partners for {deal.BuyOut:N0} cr, and the hold is shared",
+                    WorldEventKind.Capture, Shown(b));
+                return deal.Keeper;
+            }
+            // Nobody could buy the others out: the hull goes to the breakers, its people as the largest claim's prisoners.
+            PrizeClaim lead = null;
+            foreach (var claim in deal.Claims)
+                if (lead == null || claim.Share > lead.Share) lead = claim;
+            if (ship.HasCargo)
+            {
+                Economy.Release(ship);
+                ship.HasCargo = false;
+                ship.CargoDestination = null;
+                ship.Cargo = null;
+            }
+            TakeCrewCaptive(ship, lead?.Faction ?? captor, jd);
+            Detach(ship);
+            ship.Destroyed = true;
+            losses.TryGetValue(ship.Faction, out int lost);
+            losses[ship.Faction] = lost + 1;
+            world.Log(jd, $"The {allies} cannot agree who keeps the {ship.Name} ({claims}): it is sold to the breakers for {deal.BreakersValue:N0} cr, shared between them with the hold",
+                WorldEventKind.Capture, Shown(b));
+            return null;
         }
 
         void Loot(Ship ship, Faction clan, Battle b)
@@ -1682,7 +1755,9 @@ namespace Unity.SpaceGod.Core
                 if (!captures.TryGetValue(u, out var captor)) continue;
                 captures.Remove(u);
                 if (!u.Captured || u.Dead) continue;
-                DisposeOfPrize(b, u, captor, jd);
+                // A hull allies took together is theirs to settle first (U.SPC-T392): whoever keeps it disposes of it.
+                var keeper = SettleJointPrize(b, u, captor, jd);
+                if (keeper != null) DisposeOfPrize(b, u, keeper, jd);
             }
 
             // Survivors go back to their own schedules; those that ran, or lost, withdraw to refit.

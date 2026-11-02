@@ -137,7 +137,8 @@ namespace Unity.SpaceGod.Core
             if (seeker == null || o == null || !o.Present || !Hostile(seeker, o) || o.Captured || o.Kind == UnitKind.Fighter) return false;
             var boarder = seeker.Fighter?.Carrier ?? seeker;
             var inside = o.Combat.Interior;
-            if (inside.Captured || (inside.Boarder != null && inside.Boarder != seeker.Faction)) return false;
+            // A rival's boarding is theirs; an ally's on the same side is joined (U.SPC-T392).
+            if (!inside.Admits(seeker.Faction, seeker.Side)) return false;
             if (!MayBoard(boarder, o) || (o.Surrendering && !o.SurrenderOpenToBoarding)) return false;
             if (o.Ship != null && Spares(boarder, o) && o.Ship.HasCargo && !o.SurrenderOpenToBoarding) return false;
             return o.Combat.Disabled || o.SurrenderOpenToBoarding || o.Stunned > 10;
@@ -157,7 +158,7 @@ namespace Unity.SpaceGod.Core
                 if (d > bestD || ThreatNear(seeker, o.Pos, BoardingShuttles.ThreatKm) || ShuttleBound(seeker, o)) continue;
                 // A hull its side is already boarding gets another team only while the defenders still outnumber them.
                 var inside = o.Combat.Interior;
-                if (inside.Boarder == seeker.Faction && inside.Boarders >= inside.Marines + inside.Crew * 0.15) continue;
+                if (inside.Boarder != null && inside.Boarders >= inside.Marines + inside.Crew * 0.15) continue;
                 bestD = d;
                 best = o;
             }
@@ -188,7 +189,7 @@ namespace Unity.SpaceGod.Core
             var at = inside.Nearest(shuttle.LatchLocal.Z, shuttle.LatchLocal.Y);
             double marines = shuttle.Combat.Interior.TakeMarines(shuttle.Combat.Interior.Marines);
             double drill = shuttle.Fighter?.Drill ?? 1;
-            if (marines < 0.5 || !inside.Board(shuttle.Faction, shuttle.Faction.MarineQuality * drill, marines, at, false, Seconds, rng))
+            if (marines < 0.5 || !inside.Board(shuttle.Faction, shuttle.Faction.MarineQuality * drill, marines, at, false, Seconds, rng, shuttle.Side))
             {
                 shuttle.Combat.Interior.Embark(0, marines);
                 shuttle.Latched = null;

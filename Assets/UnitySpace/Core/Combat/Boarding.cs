@@ -75,6 +75,21 @@ namespace Unity.SpaceGod.Core
     }
 
     /// <summary>
+    /// One faction's part in a boarding (U.SPC-T392): the marines it has landed and the fighting strength they brought
+    /// (marines times quality). Allied factions on one side fight a hull's defenders as one party; what each committed is
+    /// its claim on the prize when it falls (see <see cref="PrizeSettlement"/>).
+    /// </summary>
+    public sealed class BoardingParty
+    {
+        public Faction Faction;
+        public double Landed;
+        public double Strength;
+
+        /// <summary>Order of landing: the first faction aboard is 0.</summary>
+        public int Order;
+    }
+
+    /// <summary>
     /// The inside of a hull and any fight going on in it. Defending marines sit in their barracks
     /// and react to a breach after a delay; the fight in each compartment trades casualties by
     /// numbers, training (<see cref="Faction.MarineQuality"/>) and a defender's advantage; boarders
@@ -87,9 +102,21 @@ namespace Unity.SpaceGod.Core
         public readonly List<Compartment> Compartments = new List<Compartment>();
         public readonly List<BoardingNote> Log = new List<BoardingNote>();
 
-        /// <summary>Who is boarding (null when nobody is aboard who should not be).</summary>
+        /// <summary>Who is boarding (null when nobody is aboard who should not be): with allies boarding together
+        /// (U.SPC-T392), the faction that landed first, which leads the party.</summary>
         public Faction Boarder;
+
+        /// <summary>The quality of the boarders aboard: with several landings (allies', or the same faction's from hulls
+        /// that drilled differently) the strength-weighted mean of everyone who came aboard.</summary>
         public double BoarderQuality = 1;
+
+        /// <summary>The battle side the boarding party fights for, or -1 when the caller gave none (then no other faction
+        /// may join it). Allies on that side may land and fight as one party with the first (U.SPC-T392).</summary>
+        public int BoarderSide = -1;
+
+        /// <summary>Every faction with marines in the boarding, in order of landing (U.SPC-T392). Kept once the hull is
+        /// taken, until it is handed over, so the allies' claims on the prize can be settled.</summary>
+        public readonly List<BoardingParty> Parties = new List<BoardingParty>();
         public double DefenderQuality = 1;
 
         /// <summary>How far the marines aboard have drilled in their habitats (U.SPC-T465), 0 (raw) to 1 (fully trained):
@@ -152,6 +179,35 @@ namespace Unity.SpaceGod.Core
         }
 
         public bool UnderBoarding => Boarder != null && Boarders > 0.5 && !Captured;
+
+        /// <summary>Whether <paramref name="faction"/>, fighting for <paramref name="side"/>, may land boarders now: nobody
+        /// is boarding, it is that faction's own boarding, or (U.SPC-T392) an ally's on the same side. Never once taken.</summary>
+        public bool Admits(Faction faction, int side = -1) =>
+            !Captured && (Boarder == null || Boarder == faction || (side >= 0 && side == BoarderSide));
+
+        /// <summary>Whether <paramref name="faction"/> has marines in the boarding (as its lead or an ally).</summary>
+        public bool IsParty(Faction faction)
+        {
+            if (faction == null || Boarder == null) return false;
+            if (Boarder == faction) return true;
+            foreach (var p in Parties) if (p.Faction == faction) return true;
+            return false;
+        }
+
+        /// <summary>Whether more than one faction is boarding together (U.SPC-T392).</summary>
+        public bool Joint => Parties.Count > 1;
+
+        /// <summary>Who is boarding, as a log or the HUD names them: the lead, or every allied faction in it.</summary>
+        public string BoarderNames
+        {
+            get
+            {
+                if (Parties.Count <= 1) return Boarder?.Name ?? "";
+                var names = new List<string>();
+                foreach (var p in Parties) names.Add(p.Faction.Name);
+                return names.Count == 2 ? names[0] + " and " + names[1] : string.Join(", ", names.GetRange(0, names.Count - 1)) + " and " + names[names.Count - 1];
+            }
+        }
 
         /// <summary>Non-combatants sheltering aboard (a derelict's left-behind crew).</summary>
         public double Survivors
@@ -369,17 +425,30 @@ namespace Unity.SpaceGod.Core
 
         // ---------------------------------------------------------------- the fight
 
-        /// <summary>Marines come aboard at a compartment (a pod, a Breacher round's drill, or an airlock after docking).</summary>
-        /// <summary>Returns false when nobody was landed (the ship is already taken, or another faction is boarding it),
-        /// so the caller can take its marines back rather than lose them.</summary>
-        public bool Board(Faction boarder, double quality, double marines, Compartment at, bool breach, double seconds, Random rng)
+        /// <summary>Marines come aboard at a compartment (a pod, a Breacher round's drill, or an airlock after docking).
+        /// Returns false when nobody was landed (the ship is already taken, or a faction not allied with this one is
+        /// boarding it), so the caller can take its marines back rather than lose them. <paramref name="side"/> is the battle
+        /// side the marines fight for: an ally on the side already boarding joins the party and fights the defenders with
+        /// it as one (U.SPC-T392); without a side, only the faction already boarding may land more.</summary>
+        public bool Board(Faction boarder, double quality, double marines, Compartment at, bool breach, double seconds, Random rng, int side = -1)
         {
-            if (Captured) return false;
-            if (Boarder != null && Boarder != boarder) return false;
+            if (!Admits(boarder, side)) return false;
             // Defenders are roused once per boarding: more boarders landing later don't stand them down again.
             bool fresh = Boarder == null;
-            Boarder = boarder;
-            BoarderQuality = quality;
+            if (fresh)
+            {
+                Boarder = boarder;
+                BoarderSide = side;
+                Parties.Clear();
+                BoarderQuality = quality;
+            }
+            else
+            {
+                // Everyone aboard fights as one party, as well as the mix of them who landed.
+                double aboard = Boarders;
+                BoarderQuality = aboard + marines > 1e-9 ? (aboard * BoarderQuality + marines * quality) / (aboard + marines) : quality;
+            }
+            JoinParty(boarder, marines, quality);
             at.Boarders += marines;
             BoardersLanded += marines;
             if (breach && !at.Vented)
@@ -394,8 +463,32 @@ namespace Unity.SpaceGod.Core
                 reactIn = react;
                 ClearOrders();
             }
-            Note(seconds, at.Index, $"{marines:0} {boarder.Name} marines board at {at.Name}" + (breach ? ", hull breached" : ""));
+            Note(seconds, at.Index, $"{marines:0} {boarder.Name} marines board at {at.Name}" + (breach ? ", hull breached" : "")
+                + (boarder != Boarder ? $", joining the {Boarder.Name}" : ""));
             return true;
+        }
+
+        void JoinParty(Faction faction, double marines, double quality)
+        {
+            BoardingParty party = null;
+            foreach (var p in Parties) if (p.Faction == faction) party = p;
+            if (party == null)
+            {
+                party = new BoardingParty { Faction = faction, Order = Parties.Count };
+                Parties.Add(party);
+            }
+            party.Landed += marines;
+            party.Strength += marines * quality;
+        }
+
+        /// <summary>The boarding is over without a prize (repelled, recalled, gone with the battle) or the prize is
+        /// handed over: nobody's party now.</summary>
+        void EndBoarding()
+        {
+            Boarder = null;
+            BoarderSide = -1;
+            Parties.Clear();
+            ClearOrders();
         }
 
         /// <summary>Advances the fight aboard by <paramref name="dt"/> seconds. Returns true the moment the ship falls.</summary>
@@ -473,19 +566,18 @@ namespace Unity.SpaceGod.Core
             if (bridge.Taken && !bridge.Contested && engineering.Taken && !engineering.Contested)
             {
                 Captured = true;
-                Note(seconds, bridge.Index, $"The {Boarder.Name} hold the bridge and engineering: the ship is taken ({Crew:0} crew surrender)");
+                Note(seconds, bridge.Index, $"The {BoarderNames} hold the bridge and engineering: the ship is taken ({Crew:0} crew surrender)");
                 return true;
             }
             if (Boarders <= 0.5)
             {
-                Note(seconds, -1, $"The {Boarder.Name} boarders are wiped out; the crew hold the ship");
+                Note(seconds, -1, $"The {BoarderNames} boarders are wiped out; the crew hold the ship");
                 foreach (var c in Compartments)
                 {
                     c.Boarders = 0;
                     if (c.Taken && c.Crew + c.Marines <= 0.01) c.Taken = false;
                 }
-                Boarder = null;
-                ClearOrders();
+                EndBoarding();
                 SealBreaches();
             }
             return false;
@@ -596,8 +688,7 @@ namespace Unity.SpaceGod.Core
                 c.Boarders = 0;
                 c.Taken = false;
             }
-            Boarder = null;
-            ClearOrders();
+            EndBoarding();
             SealBreaches();
         }
 
@@ -620,9 +711,8 @@ namespace Unity.SpaceGod.Core
                 c.Boarders = 0;
                 c.Taken = false;
             }
-            Boarder = null;
+            EndBoarding();
             Captured = false;
-            ClearOrders();
             // The ship's own marines are gone; the boarders now aboard never drilled in its habitats.
             Training = 0;
         }
@@ -642,9 +732,8 @@ namespace Unity.SpaceGod.Core
                 c.Vented = false;
                 c.SealIn = 0;
             }
-            Boarder = null;
+            EndBoarding();
             Captured = false;
-            ClearOrders();
             DefenderQuality = lurkerQuality;
             Training = 0;
             if (survivors > 0) (Of(CompartmentKind.Engineering) ?? Compartments[Compartments.Count - 1]).Survivors = survivors;
@@ -664,9 +753,8 @@ namespace Unity.SpaceGod.Core
                 c.Boarders = 0;
                 c.Taken = false;
             }
-            Boarder = null;
+            EndBoarding();
             Captured = false;
-            ClearOrders();
             return n;
         }
 
@@ -711,9 +799,8 @@ namespace Unity.SpaceGod.Core
                 c.Taken = false;
                 c.Vented = false;
             }
-            Boarder = null;
+            EndBoarding();
             Captured = false;
-            ClearOrders();
         }
     }
 }

@@ -44,10 +44,11 @@ namespace Unity.SpaceGod.Core
             if (battle == null || unit == null || !unit.Present || unit.Captured) return null;
             if (unit.Combat.Interior.UnderBoarding) return (unit, BoardingRole.Defenders);
             var latched = unit.Latched;
-            if (latched != null && latched.Present && latched.Combat.Interior.UnderBoarding && latched.Combat.Interior.Boarder == unit.Faction)
+            // Its faction's boarding, alone or (U.SPC-T392) with allies: one party, under one set of orders.
+            if (latched != null && latched.Present && latched.Combat.Interior.UnderBoarding && latched.Combat.Interior.IsParty(unit.Faction))
                 return (latched, BoardingRole.Boarders);
             foreach (var o in battle.Units)
-                if (o != unit && o.Present && o.Combat.Interior.UnderBoarding && o.Combat.Interior.Boarder == unit.Faction)
+                if (o != unit && o.Present && o.Combat.Interior.UnderBoarding && o.Combat.Interior.IsParty(unit.Faction))
                     return (o, BoardingRole.Boarders);
             return null;
         }

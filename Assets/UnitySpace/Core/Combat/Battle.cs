@@ -857,7 +857,9 @@ namespace Unity.SpaceGod.Core
         /// <summary>A ship our side is boarding, or about to board: worth more taken than destroyed.</summary>
         bool IsPrize(BattleUnit u, BattleUnit target)
         {
-            if (target.Combat.Interior.Boarder == u.Faction) return true;
+            // Its own boarding, or an ally's on its side it may join (U.SPC-T392).
+            var inside = target.Combat.Interior;
+            if (inside.Boarder != null && inside.Admits(u.Faction, u.Side)) return true;
             foreach (var o in Units)
                 if (o.Side == u.Side && o.Present && (o.BoardTarget == target || o.Latched == target)) return true;
             return false;
@@ -2829,7 +2831,8 @@ namespace Unity.SpaceGod.Core
                 // A hull waiting on terms isn't fired on, pods included -- unless the terms are to take it.
                 if (o.Surrendering && !o.SurrenderOpenToBoarding) continue;
                 if (o.Combat.Shield > o.Combat.Spec.Shield * 0.05 && o.Combat.HasShieldGenerator) continue;
-                if (o.Combat.Interior.Boarder != null && o.Combat.Interior.Boarder != u.Faction) continue;
+                // A rival's boarding is theirs; an ally's on this side is joined (U.SPC-T392).
+                if (!o.Combat.Interior.Admits(u.Faction, u.Side)) continue;
                 double d = (o.Pos - u.Pos).Length;
                 if (o.Combat.Disabled) d *= 0.5;
                 if (d < best)
@@ -2872,11 +2875,12 @@ namespace Unity.SpaceGod.Core
             Embed(t, at, m.Vel, m.Side, false);
             var local = t.ToLocal(at);
             var space = c.Interior.Nearest(local.Z, local.Y);
-            // Another faction on the same side may have started boarding (or taken) this hull while the pod was in
-            // flight, when the squad cannot land: it returns to the ship that fired it, if that is still there.
+            // An ally on the same side boarding it already is joined, the two fighting it as one party (U.SPC-T392); a hull
+            // taken while the pod was in flight (or one a faction of another side boards) cannot be landed on: the squad
+            // returns to the ship that fired it, if that is still there.
             // The squad fights as well as it drilled in the habitat it came from (U.SPC-T465).
             double drill = m.Source?.Combat?.Interior.DrillFactor ?? 1;
-            if (!c.Interior.Board(m.Owner, m.Owner.MarineQuality * drill, m.Marines, space, true, Seconds, rng))
+            if (!c.Interior.Board(m.Owner, m.Owner.MarineQuality * drill, m.Marines, space, true, Seconds, rng, m.Side))
             {
                 if (m.Source != null && m.Source.Present && !m.Source.Captured) m.Source.Combat.Interior.Embark(0, m.Marines);
             }
@@ -2956,7 +2960,7 @@ namespace Unity.SpaceGod.Core
             {
                 if (!Hostile(u, o) || o.Captured || o.Kind == UnitKind.Fighter) continue;
                 var inside = o.Combat.Interior;
-                if (inside.Captured || (inside.Boarder != null && inside.Boarder != u.Faction)) continue;
+                if (!inside.Admits(u.Faction, u.Side)) continue;
                 // A hull waiting on terms is not boarded until they open it to boarding.
                 if (!MayBreach(u, o) || (o.Surrendering && !o.SurrenderOpenToBoarding)) continue;
                 // A merchant's hold is asked for first, not fought through its corridors for (U.SPC-T374).
@@ -3078,7 +3082,7 @@ namespace Unity.SpaceGod.Core
             bool spared = t.Surrendering && !t.SurrenderOpenToBoarding;
             // The team fights as well as it drilled in the habitat it came from (U.SPC-T465), with the shock of the breach.
             double drill = m.Source?.Combat?.Interior.DrillFactor ?? 1;
-            if (spared || !c.Interior.Board(m.Owner, m.Owner.MarineQuality * BreacherBays.ShockEdge * drill, m.Marines, space, true, Seconds, rng))
+            if (spared || !c.Interior.Board(m.Owner, m.Owner.MarineQuality * BreacherBays.ShockEdge * drill, m.Marines, space, true, Seconds, rng, m.Side))
             {
                 if (m.Source != null && m.Source.Present && !m.Source.Captured) m.Source.Combat.Interior.Embark(0, m.Marines);
             }
@@ -3113,7 +3117,7 @@ namespace Unity.SpaceGod.Core
             foreach (var o in Units)
             {
                 if (!Hostile(u, o) || o.Captured || o.Kind != UnitKind.Ship) continue;
-                if (o.Combat.Interior.Boarder != null && o.Combat.Interior.Boarder != u.Faction) continue;
+                if (!o.Combat.Interior.Admits(u.Faction, u.Side)) continue;
                 if (!MayBoard(u, o) || (o.Surrendering && !o.SurrenderOpenToBoarding)) continue;
                 // A merchant's hold is asked for, not fought through its corridors for (U.SPC-T374): raiders board a hull
                 // with cargo aboard only once it has turned their demand down.
@@ -3169,12 +3173,12 @@ namespace Unity.SpaceGod.Core
                     u.LatchLocal = t.ToLocal(u.Pos);
                     u.BoardTarget = null;
                     u.LatchTimer = 0;
-                    if (!t.Combat.Interior.Captured && (t.Combat.Interior.Boarder == null || t.Combat.Interior.Boarder == u.Faction))
+                    if (t.Combat.Interior.Admits(u.Faction, u.Side))
                     {
                         double marines = c.MarinesAvailable * 0.85;
                         RemoveMarines(c.Interior, marines);
                         var airlock = t.Combat.Interior.Of(CompartmentKind.Midships) ?? t.Combat.Interior.Nearest(0, 0);
-                        t.Combat.Interior.Board(u.Faction, u.Faction.MarineQuality * c.Interior.DrillFactor, marines, airlock, false, Seconds, rng);
+                        t.Combat.Interior.Board(u.Faction, u.Faction.MarineQuality * c.Interior.DrillFactor, marines, airlock, false, Seconds, rng, u.Side);
                         Emit(FxKind.Latch, u.Pos, t.Pos, u.LengthKm, u.Side, t, airlock.Index);
                     }
                 }
@@ -3219,7 +3223,7 @@ namespace Unity.SpaceGod.Core
                 interior.AutoResolve(BoardingRole.Defenders);
             if (interior.BoarderOrder == BoardingOrder.Auto) return;
             foreach (var o in Units)
-                if (o.PlayerControlled && o.Present && !o.Captured && o.Faction == interior.Boarder) return;
+                if (o.PlayerControlled && o.Present && !o.Captured && interior.IsParty(o.Faction)) return;
             interior.AutoResolve(BoardingRole.Boarders);
         }
 
