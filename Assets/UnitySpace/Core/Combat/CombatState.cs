@@ -80,6 +80,11 @@ namespace Unity.SpaceGod.Core
         /// <summary>Boarding shuttles in the hangars (carriers, U.SPC-T486, <see cref="BoardingShuttles"/>); losses are made good at a yard.</summary>
         public int Shuttles;
 
+        /// <summary>The player holds this station (a settlement's defence platform or a gate fort) at its
+        /// <see cref="StationSeat"/> (U.SPC-T447): its guns are laid on the player's aim, in a fight or out of one. Kept on
+        /// the station itself, so it stays held as a fight starts or ends around it.</summary>
+        public bool StationHeld;
+
         /// <summary>Boost charge, 0-1: drains over <see cref="CombatSpec.BoostDurationS"/> while held and
         /// recharges (twice as slowly) otherwise. Shared by AI and player flight so boost behaves the same
         /// whoever is flying.</summary>

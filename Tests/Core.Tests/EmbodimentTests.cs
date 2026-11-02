@@ -178,8 +178,10 @@ namespace Unity.SpaceGod.Core.Tests
             Assert.That(mounts[0].Embodied, Is.False);
             Assert.That(mounts[1].Embodied, Is.True);
             Assert.That(b.Manned.Keys, Is.EquivalentTo(new[] { mounts[1].Mount }));
-            Assert.That(session.MoveToHost(), Is.False, "a platform's guns have no host seat yet");
-            Assert.That(session.Current, Is.SameAs(mounts[1]));
+            // A platform's guns are mounted on the station itself (U.SPC-T447).
+            Assert.That(session.MoveToHost(), Is.True);
+            Assert.That(session.Current, Is.EqualTo(Embodiables.StationOf(null, b, station)));
+            Assert.That(mounts[1].Embodied, Is.False, "the gun is the station's now, laid with all the rest");
         }
 
         // ------------------------------------------------------------ a ship's helm behind the same seam

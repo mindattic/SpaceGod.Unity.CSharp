@@ -10,6 +10,9 @@ namespace Unity.SpaceGod.Core
 
         /// <summary>The trigger, held this frame.</summary>
         public bool Trigger;
+
+        /// <summary>Laid as one of a whole station's guns (<see cref="StationSeat"/>, U.SPC-T447), not as a turret on its own.</summary>
+        public bool ByStation;
     }
 
     /// <summary>
@@ -40,7 +43,8 @@ namespace Unity.SpaceGod.Core
         public Faction Faction => Unit.Faction;
         public IEmbodiable Host => host;
         public bool CanEmbody => Blocker == null;
-        public bool Embodied => Battle.Manned.ContainsKey(Mount);
+        /// <summary>The player holds this mount on its own: one laid as part of a whole station (<see cref="StationSeat"/>) is the station's.</summary>
+        public bool Embodied => Battle.Manned.TryGetValue(Mount, out var m) && !m.ByStation;
 
         public string Blocker
         {
