@@ -126,6 +126,13 @@ namespace Unity.SpaceGod.Core
                   "Select a ship and press P, whether it is parked, in transit, on a lane, queued at a ring, landed or in a " +
                   "battle. V spawns any hull you pick from a grid at the camera and puts you at its helm. P again hands the " +
                   "ship back to its crew, who carry on from where it is."),
+                T("A practice fighter",
+                  "Shift+V (or Practice Fighter Here on the V screen) puts a fighter of your own side at the camera, in any " +
+                  "view and any system: deep space, beside a station, among a fleet or over a world. It starts just clear of " +
+                  "whatever is there and you are straight at its helm, so you can fly alongside other hulls to see how big " +
+                  "they are and practise the flight. Each system keeps one: pressing again brings the same fighter, mended " +
+                  "and refuelled, to wherever the camera is now, so practice never fills your saves with spare hulls. A " +
+                  "practice fighter lost, taken or still in a fight is left to it and a new one takes its place."),
                 T("Newtonian flight",
                   "Every hull has mass, a main drive, weaker retro thrusters and manoeuvre thrusters, so it carries its " +
                   "momentum. The mouse steers, W and S thrust, A D Q E strafe, Z and X roll, Shift is the afterburner. Flight " +

@@ -70,6 +70,7 @@ namespace Unity.SpaceGod.Core
             new HelpSection("HELM AND FLIGHT",
                 L("P", "pilot the selected ship (P again hands it back)"),
                 L("V", "spawn & pilot: pick a hull from the grid to spawn and pilot it at the camera"),
+                L("Shift+V", "practice fighter: one of your fighters at the camera, clear of what is there, you at its helm, to fly beside other hulls and get the feel of them (again brings the same one over)"),
                 L("Mouse", "steer"),
                 L("W / S", "thrust"),
                 L("A / D  Q / E", "strafe"),

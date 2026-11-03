@@ -3117,6 +3117,9 @@ namespace Unity.SpaceGod.UI
 
             if (GUI.Button(new Rect(Screen.width - 210, 28, 160, 26), spawnHostile ? "FACTION: HOSTILE" : "FACTION: HOME", spawnHostile ? buttonActive : button))
                 spawnHostile = !spawnHostile;
+            // U.SPC-T601: the system's one practice fighter, at the camera, the player at its helm (Shift+V does the same).
+            if (GUI.Button(new Rect(Screen.width - 470, 28, 250, 26), "PRACTICE FIGHTER HERE  (Shift+V)", button))
+                app.SpawnPracticeFighter();
             if (GUI.Button(new Rect(Screen.width - 40, 24, 30, 30), "X", button))
                 app.ShowSpawn = false;
 

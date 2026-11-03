@@ -93,6 +93,9 @@ namespace Unity.SpaceGod.Input
 
         /// <summary>Dev/sandbox panel: spawn a ship of any class at the camera and pilot it.</summary>
         public bool ToggleSpawn;
+
+        /// <summary>U.SPC-T601: Shift+V puts the practice fighter at the camera and the player at its helm.</summary>
+        public bool SpawnPractice;
         public bool WatchBattle;
         public bool ToggleLanes;
         public bool ToggleSatellites;
@@ -259,7 +262,8 @@ namespace Unity.SpaceGod.Input
             ClearScreen = kb.f11Key.wasPressedThisFrame;
             HailPolity = kb.f12Key.wasPressedThisFrame;
             ToggleNews = kb.xKey.wasPressedThisFrame;
-            ToggleSpawn = kb.vKey.wasPressedThisFrame;
+            ToggleSpawn = kb.vKey.wasPressedThisFrame && !Boost;
+            SpawnPractice = kb.vKey.wasPressedThisFrame && Boost;
             WatchBattle = kb.bKey.wasPressedThisFrame;
             ToggleLanes = kb.nKey.wasPressedThisFrame;
             bool skyShift = kb.leftShiftKey.isPressed || kb.rightShiftKey.isPressed;
@@ -317,6 +321,7 @@ namespace Unity.SpaceGod.Input
             Focus = Escape = ToggleScale = TimeFaster = TimeSlower = TogglePause = ResetTime = false;
             ToggleOrbits = ToggleLabels = ToggleHelp = ToggleHud = ClearScreen = ToggleMarket = ToggleCargo = ToggleOutfit = ToggleSilent = ToggleBounties = ToggleContracts = ToggleFleet = ToggleTrade = ToggleGalaxyMap = ToggleNews = ToggleSpawn = WatchBattle = ToggleLanes = ToggleSatellites = ToggleReorient = CycleShips = CycleBackward = Home = Pilot = LockTarget = ActivateGate = EngageFtl = false;
             QuickSave = QuickLoad = ToggleSaves = false;
+            SpawnPractice = false;
             ToggleFtlAutopilot = ClearFtlCourse = false;
             CycleFtlTarget = 0;
             CycleSeat = 0;

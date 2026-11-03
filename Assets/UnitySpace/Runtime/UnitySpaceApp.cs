@@ -842,6 +842,8 @@ namespace Unity.SpaceGod
             // At the helm X rolls the hull (Z/X): the news feed would free the cursor and take the stick and guns.
             if (i.ToggleNews && !AtControls) ShowNews = !ShowNews;
             if (i.ToggleSpawn) ShowSpawn = !ShowSpawn;
+            // Shift+V: the practice fighter at the camera, the player at its helm (U.SPC-T601).
+            if (i.SpawnPractice) SpawnPracticeFighter();
             if (i.ToggleLanes) ShowLanes = !ShowLanes;
             if (i.ToggleReorient) ToggleAutoReorient();
             if (i.ToggleSatellites)
