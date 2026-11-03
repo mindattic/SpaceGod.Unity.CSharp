@@ -129,7 +129,8 @@ namespace Unity.SpaceGod.Core
             }
             int was = SeatIdOf(p);
             bool took = session.Switch(next);
-            if (was != 0 && was != id) raise(new SeatReleased(p, was, null));
+            // Retaking the seat already held can fail too (it can no longer be embodied): it is let go all the same.
+            if (was != 0 && (was != id || !took)) raise(new SeatReleased(p, was, null));
             if (!took)
             {
                 controls.Remove(p);

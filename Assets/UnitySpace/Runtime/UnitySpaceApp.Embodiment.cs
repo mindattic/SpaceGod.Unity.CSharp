@@ -194,9 +194,10 @@ namespace Unity.SpaceGod
         /// following (or stays free where the seat was) and time to the warp they had. <paramref name="why"/>, when given,
         /// says why the seat was lost.
         /// </summary>
-        void ReturnToCommand(string why = null)
+        void ReturnToCommand(string why = null, string lostName = null)
         {
-            string name = HeldNonHelm?.Name;
+            // A seat already lost (the session let go of it) is named by the caller, so the toast can still say why.
+            string name = HeldNonHelm?.Name ?? lostName;
             ReleaseSeat();
             if (IsPiloting)
             {
@@ -500,7 +501,7 @@ namespace Unity.SpaceGod
             session.Advance(simDt);
             if (HeldNonHelm == null)
             {
-                ReturnToCommand(session.State.EndedBecause(session.LocalPlayer) ?? "lost");
+                ReturnToCommand(session.State.EndedBecause(session.LocalPlayer) ?? "lost", held.Name);
                 return;
             }
             var pose = held.PoseAt(Clock.Jd);

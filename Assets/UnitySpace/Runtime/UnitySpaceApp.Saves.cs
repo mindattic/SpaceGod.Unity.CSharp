@@ -263,6 +263,10 @@ namespace Unity.SpaceGod
             pilotEmpSeconds = 0;
             pilot = default;
             rideWarpBefore = -1;
+            // The FTL autopilot's run out (and the course it flies) belong to the old galaxy's hull: a load made mid-run must
+            // not fly the loaded helm on it, nor leave it "flying" with no helm at all (which blocks every save after).
+            FtlAutopilot.Reset();
+            PlottedCourse = null;
             RideOnward.Clear();
             RideChoice = -1;
             RideThreat = null;
