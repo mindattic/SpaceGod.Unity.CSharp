@@ -452,11 +452,13 @@ namespace Unity.SpaceGod.Core
             if (why != null) return why;
             var groups = Groups(f, scope, group, system);
             if (groups.Count == 0) return "The " + f.Name + " has no fleet group there to send";
+            Ship firstGiven = null;
             foreach (var (leader, where) in groups)
             {
                 if (kind == ObjectiveKind.Escort && leader == charge) continue;
                 var o = new FleetObjective { Kind = kind, Where = target, Body = body, Charge = charge, SinceJd = jd };
                 objectives[leader] = o;
+                firstGiven ??= leader;
                 given++;
                 if (where == target)
                 {
@@ -467,7 +469,7 @@ namespace Unity.SpaceGod.Core
             }
             if (given == 0) return "No group there could be given it";
 
-            target.Log(jd, $"The {f.Name} orders {(given == 1 ? "the " + groups[0].Leader.Name : given + " groups")} to {Describe(kind, target, body, charge).ToLowerInvariant()}",
+            target.Log(jd, $"The {f.Name} orders {(given == 1 ? "the " + firstGiven.Name : given + " groups")} to {Describe(kind, target, body, charge).ToLowerInvariant()}",
                 WorldEventKind.Diplomacy, body >= 0 ? body : -1);
             return null;
         }

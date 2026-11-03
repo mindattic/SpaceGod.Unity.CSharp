@@ -1169,6 +1169,8 @@ namespace Unity.SpaceGod
             pilotLockUnit = null;
             pilotBoosting = false;
             pilotCruise = default;
+            // A trigger held as the helm was taken is not still held by the next hull flown.
+            helmTriggerWas = false;
             SpaceCamera.PilotLockTarget = Target.None;
             SpaceCamera.ExitFocus();
             ShowToast("The " + ship.Name + " has been boarded and taken");
@@ -2203,7 +2205,9 @@ namespace Unity.SpaceGod
         public void ResetToNow()
         {
             // A reset can rebuild the galaxy out from under the piloted ship (the HUD's Now button lands here too).
-            if (IsPiloting) { ShowToast("Release the helm (P) before resetting the time"); return; }
+            if (AtControls) { ShowToast("Release the helm or seat (P) before resetting the time"); return; }
+            // Nor under the hull's own FTL drive: the crossing holds the old galaxy's systems (the Now button reaches here too).
+            if (InFtlCruise) { ShowToast("Not under FTL: wait until the drive drops out before resetting the time"); return; }
             double now = Astro.JulianDate(DateTime.UtcNow);
             bool backwards = now < Clock.Jd;
             // Rebuilding the systems mid-trip would leave the trip pointing at the old ones: land first.
