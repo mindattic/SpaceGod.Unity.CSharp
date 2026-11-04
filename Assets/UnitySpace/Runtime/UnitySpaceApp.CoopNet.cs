@@ -21,6 +21,7 @@ namespace Unity.SpaceGod
         /// <summary>Time.unscaledDeltaTime, or on a co-op client the host's seconds for the frame being replayed.</summary>
         float CoopUnscaledDeltaTime()
         {
+            if (Audit.AuditRunner.Dt is float audit) return audit; // US-T70: the scripted smoke/audit's fixed 1/60 s step, as under Unreal
             var peer = CoopPeer.Current;
             return peer != null && peer.IsClient && peer.ClientRecord != null ? peer.ClientRecord.Dt : Time.unscaledDeltaTime;
         }
