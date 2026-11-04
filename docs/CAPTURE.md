@@ -36,6 +36,10 @@ Anything after `-capture` that is not a capture word is left for the game, as Mi
   without opening a video:
   `[capture] event <name> k1=v1 k2=v2 ...`, with keys in the catalogue's order and values formatted invariant-culture,
   numbers as integers. It is written only while capture is running.
+  - **Quoting:** a value that is empty, or holds a space or a `"`, is written in double quotes, with any inner `"`
+    doubled: `system="Alpha Centauri"`, `from=""`.
+  - **Enums:** written by member name, e.g. `class=Frigate` (ShipClass), `kind=Ship` (UnitKind).
+  - **Hotkeys:** each one also logs `[capture] hotkey <command>`.
 
 ## 3. Gameplay events
 
@@ -60,7 +64,7 @@ produces arrival, warp or battle events.
 | `battle-won` / `battle-lost` / `battle-drawn` | Polled. The battle recorded at `battle-started` is `Over`. Won when `Winner` is the side the helm hull fought on (`BattleUnit.FoughtOn` of its unit, read at start), lost when it is the other side, drawn when it is -1. Fires once per battle, even if the helm hull died in it. | `battle`, `system`, `ship` |
 | `ship-destroyed` | Polled. A unit of that battle becomes `Dead` while the battle is followed (the helm hull's own unit included). | `name` (BattleUnit.Name), `kind` (UnitKind), `side` (`ours` when the unit fought on the helm hull's side, else `theirs`), `battle` |
 | `player-ship-destroyed` | Polled. The helm hull's `Destroyed` goes from false to true. | `ship`, `class` (ShipClass), `system` |
-| `gate-departure` | `World.ReachedGate(ship, jd)` for the helm hull, in the active system's World. | `ship`, `system` |
+| `gate-departure` | The helm flies through a jump gate: `UpdateGateActivation`, right after `GateTransit.TryPerform` succeeds (before the far system is activated). AI hulls reaching gates (`World.ReachedGate`) are not events. | `ship` (the hull that went in), `gate` (gate name), `system` (the system left), `to` (destination system) |
 | `system-arrival` | Polled. `ActiveSystem` changes, not through a rebuild: a gate crossing, FTL arrival, party trip. | `system` (new), `from` (old), `ship` (helm hull, or empty) |
 | `orbit-arrival` / `orbit-departure` | Polled, for the same helm hull as last frame. Its `Phase` becomes `Parked` from another phase, or leaves `Parked`. | `ship`, `body` (catalogue name of `Orbit.Body`; for a departure, the body it was parked at) |
 | `trade` | Hud `ClickBuy` / `ClickSell` after the market answers, with crates > 0. These run on every co-op peer at the entry's frame. | `side` (`buy` or `sell`), `good` (GoodInfo name), `crates` (crates moved), `market` (settlement name) |
@@ -72,8 +76,34 @@ produces arrival, warp or battle events.
 | `game-saved` | `SaveTo(slot)` succeeds. | `slot` (`SlotName(slot)`) |
 | `game-loaded` | `LoadFrom(slot)` succeeds, on the peer that loaded. | `slot` |
 | `coop-joined` | CoopPeer, on the host: a player joins (`"<name> joined as player N"`). | `player` (name), `seat` (1-based) |
-| `coop-left` | CoopPeer, on the host: a player left or said bye. | `player`, `seat` |
+| `coop-left` | CoopPeer, on the host: a player's link is dropped (`"<name> (player N) left"`). Saying bye comes first and is not an event of its own. | `player`, `seat` |
 | `coop-resync` | CoopPeer: the host sends sync #n, or the client loads sync #n. | `sync` (number), `frame`, `reason` (host only; the client sends an empty string) |
+
+**Order within one frame** (a log compared across copies depends on it): the direct events as their code runs, then
+the polled ones in this order: `system-arrival`, `time-warp`, `player-ship-destroyed`, `orbit-arrival`/`orbit-departure`,
+`battle-started`, `ship-destroyed` (in `Battle.Units` order), then the battle's end.
+
+**Battle following:**
+- One battle is followed at a time, the helm hull's. It is dropped without an event when the active system changes.
+- Units already dead when it starts are not reported.
+- The helm hull's side is `-1` if its unit is not found. Then every unit is `theirs` and a battle with a winner is `battle-lost`.
+
+**Unity code points** (Assets/UnitySpace/Runtime):
+
+| Hook | Code point |
+|---|---|
+| `CaptureEvents.Attach` | UnitySpaceApp.cs:430 (end of startup); again on every `GalaxyRebuilt` |
+| `Tick` | UnitySpaceApp.cs:434 (`LateUpdate`) |
+| hotkeys | UnitySpaceApp.cs:649 (right after `Input.Poll`); Input/InputState.cs:296 |
+| `hail` | UnitySpaceApp.cs:249 |
+| `gate-departure` | UnitySpaceApp.cs:1639 |
+| `game-saved` | UnitySpaceApp.Saves.cs:155 |
+| `game-loaded` | UnitySpaceApp.Saves.cs:192 |
+| `trade` | UI/Hud.cs:2834 (buy), :2880 (sell) |
+| `coop-resync` | Coop/CoopPeer.cs:485 (host), :842 (client) |
+| `coop-left` | Coop/CoopPeer.cs:521 |
+| `coop-joined` | Coop/CoopPeer.cs:630 |
+| polled events, `star-discovered`, `war-declared`, `peace` | CaptureEvents.cs |
 
 Contracts are not in the catalogue. The game has no single seam for accepting or completing a contract that a player
 would film. Add one here first if it is wanted.
@@ -131,7 +161,11 @@ frame.
 **Without capture:** Alt+F9/F10/F11 behave exactly as before; Alt is ignored and the plain key acts.
 
 **Scope:** these commands are local to the machine that pressed them. They are not co-op input and are never sent to
-other peers. `InputState.Reset` clears them like every other flag.
+other peers.
+- `InputState.Reset` clears them like every other flag.
+- In Unity they are properties, not fields, because co-op's `PilotFrame` carries every public field of `InputState` to
+  the other peers.
+- Each copy keeps them out of its co-op input frame in its own way.
 
 ## 6. Build gating
 
@@ -146,7 +180,13 @@ other peers. `InputState.Reset` clears them like every other flag.
 - **Missing ffmpeg:** video is skipped and one error is logged. Without `capture.exe` installed, the session export
   runs in the game at exit instead of in a detached process.
 
-## 7. Proof
+## 7. Scripted check
+
+`tools/coop-smoke.ps1 -CaptureHost` (Unity) runs the co-op smoke with `-capture video` on the host, so one scripted
+session raises most of the catalogue: `coop-joined`, `coop-resync`, `trade`, `hail`, `system-arrival` (the party trip),
+`game-loaded`, `time-warp` and `coop-left`. The Unreal copies give their own smoke the same switch.
+
+## 8. Proof
 
 Each copy, after a change to anything here:
 - **Bench:** the Bench's five digests.
