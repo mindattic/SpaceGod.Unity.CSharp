@@ -1,17 +1,17 @@
 {
   "dependencies": {
     "com.mindattic.capture": {
-      "version": "file:../../MindAttic.Capture/unity/com.mindattic.capture",
+      "version": "file:com.mindattic.capture",
       "depth": 0,
-      "source": "local",
+      "source": "embedded",
       "dependencies": {
         "com.unity.nuget.newtonsoft-json": "3.2.1"
       }
     },
     "com.mindattic.unity.shared": {
-      "version": "file:../../Unity.Shared/unity/com.mindattic.unity.shared",
+      "version": "file:com.mindattic.unity.shared",
       "depth": 0,
-      "source": "local",
+      "source": "embedded",
       "dependencies": {}
     },
     "com.unity.burst": {

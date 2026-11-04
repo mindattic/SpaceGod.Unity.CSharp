@@ -1,9 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- The Unity.Shared package's engine-free Unity.Shared.Core assembly (player profiles, settings.json;
        U.SPC-T325), compiled from the package's own source as Unity compiles it (.NET Standard 2.1, C# 9), so
-       UnitySpace.Core can use it outside the editor. Its repo is cloned next to this one, as
-       Packages/manifest.json expects; from a checkout elsewhere (a worktree) set UnitySharedDir, e.g. as an
-       environment variable. -->
+       UnitySpace.Core can use it outside the editor. The package is embedded in this repo
+       (Packages/com.mindattic.unity.shared, see Packages/VENDORED.md), so nothing outside the repo is needed. -->
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
     <LangVersion>9.0</LangVersion>
@@ -13,12 +12,12 @@
     <RootNamespace>Unity.Shared.Core</RootNamespace>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <IsPackable>false</IsPackable>
-    <UnitySharedDir Condition="'$(UnitySharedDir)' == ''">$(MSBuildThisFileDirectory)../../../Unity.Shared/</UnitySharedDir>
+    <UnitySharedDir Condition="'$(UnitySharedDir)' == ''">$(MSBuildThisFileDirectory)../../Packages/com.mindattic.unity.shared/</UnitySharedDir>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="$(UnitySharedDir)unity/com.mindattic.unity.shared/Runtime/Core/**/*.cs" LinkBase="Core" />
+    <Compile Include="$(UnitySharedDir)Runtime/Core/**/*.cs" LinkBase="Core" />
   </ItemGroup>
-  <Target Name="RequireUnityShared" BeforeTargets="CoreCompile" Condition="!Exists('$(UnitySharedDir)unity/com.mindattic.unity.shared/package.json')">
-    <Error Text="The Unity.Shared repo was not found at $(UnitySharedDir). Clone it next to Unity.SpaceGod, or set UnitySharedDir to its folder." />
+  <Target Name="RequireUnityShared" BeforeTargets="CoreCompile" Condition="!Exists('$(UnitySharedDir)package.json')">
+    <Error Text="The embedded Unity.Shared package was not found at $(UnitySharedDir)." />
   </Target>
 </Project>

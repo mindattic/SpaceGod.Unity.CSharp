@@ -1,0 +1,11 @@
+{
+  "name": "com.mindattic.unity.shared",
+  "version": "1.0.0",
+  "displayName": "MindAttic Shared",
+  "description": "Shared code for every MindAttic Unity game: player profiles, each with one versioned settings.json (format mindattic.settings v1) holding a common block (volumes, mutes, reduce motion, language, display name, colour) and a game-owned block, plus a dependency-free JSON reader/writer. Unity.Shared.Core is engine-free (plain dotnet netstandard2.1); Unity.Shared roots it at Application.persistentDataPath.",
+  "unity": "6000.0",
+  "author": { "name": "MindAttic" },
+  "license": "MIT",
+  "keywords": [ "profiles", "settings", "save", "json" ],
+  "dependencies": {}
+}

@@ -1,7 +1,5 @@
 {
     "dependencies":  {
-                         "com.mindattic.capture": "file:../../MindAttic.Capture/unity/com.mindattic.capture",
-                         "com.mindattic.unity.shared": "file:../../Unity.Shared/unity/com.mindattic.unity.shared",
                          "com.unity.modules.accessibility":  "1.0.0",
                          "com.unity.modules.adaptiveperformance":  "1.0.0",
                          "com.unity.modules.ai":  "1.0.0",
