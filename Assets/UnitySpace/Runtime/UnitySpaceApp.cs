@@ -793,9 +793,11 @@ namespace Unity.SpaceGod
 
         bool IsPointerOverUi()
         {
-            var mouse = UnityEngine.InputSystem.Mouse.current;
-            if (mouse == null) return false;
-            var p = mouse.position.ReadValue();
+            // US-T70: the pointer through Input's device (the Input System's mouse, or the co-op smoke's / the audit's script),
+            // as the Unreal C# copy reads it; it was Mouse.current, so a scripted run's pointer test read the real mouse.
+            var device = Input.Device;
+            if (device == null || !device.Present) return false;
+            var p = device.MousePosition;
             var gui = new Vector2(p.x, Screen.height - p.y);
             foreach (var r in UiRects)
                 if (r.Contains(gui)) return true;
