@@ -1,14 +1,18 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 namespace Unity.SpaceGod.Input
 {
     /// <summary>
     /// One frame of player input, polled from the Input System devices. Keeping all key reads in
     /// one place makes the bindings easy to find and keeps the camera and app logic device-free.
+    /// The keys are read through <see cref="IInputDevice"/> (the Input System's keyboard and mouse, or a script in the
+    /// co-op smoke run), the seam the Unreal ports added (US-T39); the bindings and edge rules are the original's.
     /// </summary>
     public sealed class InputState
     {
+        /// <summary>Where the keys come from: the Input System's keyboard and mouse, or a script (the co-op smoke run).</summary>
+        public IInputDevice Device { get; set; } = UnityInputDevice.Instance;
+
         /// <summary>x = strafe, y = rise, z = forward; each in [-1, 1].</summary>
         public Vector3 Move;
         public Vector2 LookDelta;
@@ -178,41 +182,41 @@ namespace Unity.SpaceGod.Input
         /// keyboard and mouse, such as the model viewer) everything reads as idle instead.</summary>
         public void Poll(bool pointerOverUi, bool suspended = false)
         {
-            var kb = Keyboard.current;
-            var mouse = Mouse.current;
+            var kb = Device;
+            var mouse = Device;
             Reset();
-            if (suspended || kb == null || mouse == null) return;
+            if (suspended || kb == null || !kb.Present) return;
 
             Move = new Vector3(
-                Axis(kb.dKey, kb.aKey),
-                Axis(kb.eKey, kb.qKey) + Axis(kb.rightBracketKey, kb.cKey),
-                Axis(kb.wKey, kb.sKey));
+                Axis(kb, Key.D, Key.A),
+                Axis(kb, Key.E, Key.Q) + Axis(kb, Key.RightBracket, Key.C),
+                Axis(kb, Key.W, Key.S));
             Move.y = Mathf.Clamp(Move.y, -1, 1);
-            Boost = kb.leftShiftKey.isPressed || kb.rightShiftKey.isPressed;
-            Slow = kb.leftCtrlKey.isPressed || kb.rightCtrlKey.isPressed;
-            Cruise = kb.jKey.isPressed;
-            ThrottleStep = kb.wKey.wasPressedThisFrame ? 1 : kb.sKey.wasPressedThisFrame ? -1 : 0;
-            Roll = Axis(kb.xKey, kb.zKey);
+            Boost = kb.IsPressed(Key.LeftShift) || kb.IsPressed(Key.RightShift);
+            Slow = kb.IsPressed(Key.LeftCtrl) || kb.IsPressed(Key.RightCtrl);
+            Cruise = kb.IsPressed(Key.J);
+            ThrottleStep = kb.WasPressedThisFrame(Key.W) ? 1 : kb.WasPressedThisFrame(Key.S) ? -1 : 0;
+            Roll = Axis(kb, Key.X, Key.Z);
 
-            MousePosition = mouse.position.ReadValue();
-            MouseDelta = mouse.delta.ReadValue();
-            Fire = mouse.leftButton.isPressed && !pointerOverUi;
-            FireEmp = mouse.middleButton.isPressed && !pointerOverUi;
-            DropMine = kb.leftCtrlKey.wasPressedThisFrame || kb.rightCtrlKey.wasPressedThisFrame;
-            LookHeld = mouse.rightButton.isPressed;
+            MousePosition = mouse.MousePosition;
+            MouseDelta = mouse.MouseDelta;
+            Fire = mouse.IsPressed(MouseButton.Left) && !pointerOverUi;
+            FireEmp = mouse.IsPressed(MouseButton.Middle) && !pointerOverUi;
+            DropMine = kb.WasPressedThisFrame(Key.LeftCtrl) || kb.WasPressedThisFrame(Key.RightCtrl);
+            LookHeld = mouse.IsPressed(MouseButton.Right);
             LookDelta = LookHeld ? MouseDelta : Vector2.zero;
-            if (mouse.rightButton.wasPressedThisFrame)
+            if (mouse.WasPressedThisFrame(MouseButton.Right))
             {
                 rightPressPosition = MousePosition;
                 rightDragged = false;
             }
             if (LookHeld && (MousePosition - rightPressPosition).sqrMagnitude > 16) rightDragged = true;
-            if (mouse.rightButton.isPressed && mouse.delta.ReadValue().sqrMagnitude > 4) rightDragged = true;
-            RightClicked = mouse.rightButton.wasReleasedThisFrame && !rightDragged;
+            if (mouse.IsPressed(MouseButton.Right) && mouse.MouseDelta.sqrMagnitude > 4) rightDragged = true;
+            RightClicked = mouse.WasReleasedThisFrame(MouseButton.Right) && !rightDragged;
 
             if (!pointerOverUi)
             {
-                float wheel = mouse.scroll.ReadValue().y;
+                float wheel = mouse.ScrollY;
                 if (Mathf.Abs(wheel) > 0.01f)
                 {
                     // Standard mice report multiples of 120 per notch; trackpads and high-resolution wheels
@@ -227,8 +231,8 @@ namespace Unity.SpaceGod.Input
                 }
             }
 
-            if (mouse.leftButton.wasPressedThisFrame) pressPosition = MousePosition;
-            if (mouse.leftButton.wasReleasedThisFrame && !pointerOverUi && (MousePosition - pressPosition).sqrMagnitude < 36)
+            if (mouse.WasPressedThisFrame(MouseButton.Left)) pressPosition = MousePosition;
+            if (mouse.WasReleasedThisFrame(MouseButton.Left) && !pointerOverUi && (MousePosition - pressPosition).sqrMagnitude < 36)
             {
                 SelectClicked = true;
                 float now = Time.unscaledTime;
@@ -237,66 +241,66 @@ namespace Unity.SpaceGod.Input
                 lastClickPosition = MousePosition;
             }
 
-            Focus = kb.fKey.wasPressedThisFrame;
-            ToggleFlightAssist = kb.fKey.wasPressedThisFrame;
-            Escape = kb.escapeKey.wasPressedThisFrame;
-            ToggleScale = kb.gKey.wasPressedThisFrame || kb.backquoteKey.wasPressedThisFrame;
-            TimeFaster = kb.periodKey.wasPressedThisFrame || kb.equalsKey.wasPressedThisFrame || kb.numpadPlusKey.wasPressedThisFrame;
-            TimeSlower = kb.commaKey.wasPressedThisFrame || kb.minusKey.wasPressedThisFrame || kb.numpadMinusKey.wasPressedThisFrame;
-            TogglePause = kb.spaceKey.wasPressedThisFrame || kb.pauseKey.wasPressedThisFrame;
-            ResetTime = kb.tKey.wasPressedThisFrame;
-            LockTarget = kb.tKey.wasPressedThisFrame;
-            ToggleOrbits = kb.oKey.wasPressedThisFrame;
-            ToggleLabels = kb.lKey.wasPressedThisFrame;
-            ToggleHelp = kb.hKey.wasPressedThisFrame || kb.f1Key.wasPressedThisFrame;
-            ToggleHud = kb.uKey.wasPressedThisFrame;
-            ToggleMarket = kb.mKey.wasPressedThisFrame;
-            ToggleCargo = kb.iKey.wasPressedThisFrame;
-            ToggleOutfit = kb.f2Key.wasPressedThisFrame;
-            ToggleSilent = kb.f3Key.wasPressedThisFrame;
-            ToggleBounties = kb.f4Key.wasPressedThisFrame;
-            ToggleContracts = kb.f7Key.wasPressedThisFrame;
-            ToggleFleet = kb.f10Key.wasPressedThisFrame;
-            ToggleTrade = kb.backslashKey.wasPressedThisFrame;
-            ToggleGalaxyMap = kb.leftBracketKey.wasPressedThisFrame;
-            ClearScreen = kb.f11Key.wasPressedThisFrame;
-            HailPolity = kb.f12Key.wasPressedThisFrame;
-            ToggleNews = kb.xKey.wasPressedThisFrame;
-            ToggleSpawn = kb.vKey.wasPressedThisFrame && !Boost;
-            SpawnPractice = kb.vKey.wasPressedThisFrame && Boost;
-            WatchBattle = kb.bKey.wasPressedThisFrame;
-            ToggleLanes = kb.nKey.wasPressedThisFrame;
-            bool skyShift = kb.leftShiftKey.isPressed || kb.rightShiftKey.isPressed;
-            bool skyAlt = kb.leftAltKey.isPressed || kb.rightAltKey.isPressed;
-            ToggleSatellites = kb.kKey.wasPressedThisFrame && !skyShift;
-            CycleSky = (kb.kKey.wasPressedThisFrame && skyShift && skyAlt) || kb.numpadDivideKey.wasPressedThisFrame ? -1
-                : (kb.kKey.wasPressedThisFrame && skyShift) || kb.numpadMultiplyKey.wasPressedThisFrame ? 1 : 0;
-            ToggleReorient = kb.rKey.wasPressedThisFrame;
-            CycleShips = kb.tabKey.wasPressedThisFrame;
+            Focus = kb.WasPressedThisFrame(Key.F);
+            ToggleFlightAssist = kb.WasPressedThisFrame(Key.F);
+            Escape = kb.WasPressedThisFrame(Key.Escape);
+            ToggleScale = kb.WasPressedThisFrame(Key.G) || kb.WasPressedThisFrame(Key.Backquote);
+            TimeFaster = kb.WasPressedThisFrame(Key.Period) || kb.WasPressedThisFrame(Key.Equals) || kb.WasPressedThisFrame(Key.NumpadPlus);
+            TimeSlower = kb.WasPressedThisFrame(Key.Comma) || kb.WasPressedThisFrame(Key.Minus) || kb.WasPressedThisFrame(Key.NumpadMinus);
+            TogglePause = kb.WasPressedThisFrame(Key.Space) || kb.WasPressedThisFrame(Key.Pause);
+            ResetTime = kb.WasPressedThisFrame(Key.T);
+            LockTarget = kb.WasPressedThisFrame(Key.T);
+            ToggleOrbits = kb.WasPressedThisFrame(Key.O);
+            ToggleLabels = kb.WasPressedThisFrame(Key.L);
+            ToggleHelp = kb.WasPressedThisFrame(Key.H) || kb.WasPressedThisFrame(Key.F1);
+            ToggleHud = kb.WasPressedThisFrame(Key.U);
+            ToggleMarket = kb.WasPressedThisFrame(Key.M);
+            ToggleCargo = kb.WasPressedThisFrame(Key.I);
+            ToggleOutfit = kb.WasPressedThisFrame(Key.F2);
+            ToggleSilent = kb.WasPressedThisFrame(Key.F3);
+            ToggleBounties = kb.WasPressedThisFrame(Key.F4);
+            ToggleContracts = kb.WasPressedThisFrame(Key.F7);
+            ToggleFleet = kb.WasPressedThisFrame(Key.F10);
+            ToggleTrade = kb.WasPressedThisFrame(Key.Backslash);
+            ToggleGalaxyMap = kb.WasPressedThisFrame(Key.LeftBracket);
+            ClearScreen = kb.WasPressedThisFrame(Key.F11);
+            HailPolity = kb.WasPressedThisFrame(Key.F12);
+            ToggleNews = kb.WasPressedThisFrame(Key.X);
+            ToggleSpawn = kb.WasPressedThisFrame(Key.V) && !Boost;
+            SpawnPractice = kb.WasPressedThisFrame(Key.V) && Boost;
+            WatchBattle = kb.WasPressedThisFrame(Key.B);
+            ToggleLanes = kb.WasPressedThisFrame(Key.N);
+            bool skyShift = kb.IsPressed(Key.LeftShift) || kb.IsPressed(Key.RightShift);
+            bool skyAlt = kb.IsPressed(Key.LeftAlt) || kb.IsPressed(Key.RightAlt);
+            ToggleSatellites = kb.WasPressedThisFrame(Key.K) && !skyShift;
+            CycleSky = (kb.WasPressedThisFrame(Key.K) && skyShift && skyAlt) || kb.WasPressedThisFrame(Key.NumpadDivide) ? -1
+                : (kb.WasPressedThisFrame(Key.K) && skyShift) || kb.WasPressedThisFrame(Key.NumpadMultiply) ? 1 : 0;
+            ToggleReorient = kb.WasPressedThisFrame(Key.R);
+            CycleShips = kb.WasPressedThisFrame(Key.Tab);
             CycleBackward = CycleShips && Boost;
-            Home = kb.homeKey.wasPressedThisFrame || kb.backspaceKey.wasPressedThisFrame;
-            Pilot = kb.pKey.wasPressedThisFrame;
-            CycleSeat = kb.quoteKey.wasPressedThisFrame ? 1 : kb.semicolonKey.wasPressedThisFrame ? -1 : 0;
-            ManGun = kb.slashKey.wasPressedThisFrame;
-            MoveToHost = kb.backspaceKey.wasPressedThisFrame;
-            TogglePicker = kb.f9Key.wasPressedThisFrame;
-            bool shifted = kb.leftShiftKey.isPressed || kb.rightShiftKey.isPressed;
-            TunePhasers = kb.insertKey.wasPressedThisFrame && !shifted;
-            ToggleBoarding = kb.bKey.wasPressedThisFrame;
-            ToggleRunHot = kb.insertKey.wasPressedThisFrame && shifted;
-            ActivateGate = kb.yKey.wasPressedThisFrame;
-            EngageFtl = kb.enterKey.wasPressedThisFrame || kb.numpadEnterKey.wasPressedThisFrame;
-            ToggleFtlAutopilot = kb.endKey.wasPressedThisFrame;
-            CycleFtlTarget = kb.pageDownKey.wasPressedThisFrame ? 1 : kb.pageUpKey.wasPressedThisFrame ? -1 : 0;
-            ClearFtlCourse = kb.deleteKey.wasPressedThisFrame && !shifted;
-            ToggleRollPatches = kb.deleteKey.wasPressedThisFrame && shifted;
-            QuickSave = kb.f5Key.wasPressedThisFrame;
-            QuickLoad = kb.f8Key.wasPressedThisFrame;
-            ToggleSaves = kb.f6Key.wasPressedThisFrame;
+            Home = kb.WasPressedThisFrame(Key.Home) || kb.WasPressedThisFrame(Key.Backspace);
+            Pilot = kb.WasPressedThisFrame(Key.P);
+            CycleSeat = kb.WasPressedThisFrame(Key.Quote) ? 1 : kb.WasPressedThisFrame(Key.Semicolon) ? -1 : 0;
+            ManGun = kb.WasPressedThisFrame(Key.Slash);
+            MoveToHost = kb.WasPressedThisFrame(Key.Backspace);
+            TogglePicker = kb.WasPressedThisFrame(Key.F9);
+            bool shifted = kb.IsPressed(Key.LeftShift) || kb.IsPressed(Key.RightShift);
+            TunePhasers = kb.WasPressedThisFrame(Key.Insert) && !shifted;
+            ToggleBoarding = kb.WasPressedThisFrame(Key.B);
+            ToggleRunHot = kb.WasPressedThisFrame(Key.Insert) && shifted;
+            ActivateGate = kb.WasPressedThisFrame(Key.Y);
+            EngageFtl = kb.WasPressedThisFrame(Key.Enter) || kb.WasPressedThisFrame(Key.NumpadEnter);
+            ToggleFtlAutopilot = kb.WasPressedThisFrame(Key.End);
+            CycleFtlTarget = kb.WasPressedThisFrame(Key.PageDown) ? 1 : kb.WasPressedThisFrame(Key.PageUp) ? -1 : 0;
+            ClearFtlCourse = kb.WasPressedThisFrame(Key.Delete) && !shifted;
+            ToggleRollPatches = kb.WasPressedThisFrame(Key.Delete) && shifted;
+            QuickSave = kb.WasPressedThisFrame(Key.F5);
+            QuickLoad = kb.WasPressedThisFrame(Key.F8);
+            ToggleSaves = kb.WasPressedThisFrame(Key.F6);
 
             Key[] digits = { Key.Digit0, Key.Digit1, Key.Digit2, Key.Digit3, Key.Digit4, Key.Digit5, Key.Digit6, Key.Digit7, Key.Digit8, Key.Digit9 };
             for (int i = 0; i < digits.Length; i++)
-                if (kb[digits[i]].wasPressedThisFrame) NumberKey = i;
+                if (kb.WasPressedThisFrame(digits[i])) NumberKey = i;
         }
 
         /// <summary>Drops this frame's right-button look (a full screen of its own has the mouse): no look, no right-click.</summary>
@@ -335,12 +339,10 @@ namespace Unity.SpaceGod.Input
             ToggleRunHot = false;
             ToggleRollPatches = false;
             NumberKey = -1;
-            // F12's edge was the one Poll sets that Reset left alone, so a suspended frame (Poll returns right after
-            // Reset) kept last frame's hail (found by the Unreal ports; docs/PARITY.md).
             HailPolity = false;
         }
 
-        static float Axis(UnityEngine.InputSystem.Controls.KeyControl positive, UnityEngine.InputSystem.Controls.KeyControl negative) =>
-            (positive.isPressed ? 1f : 0f) - (negative.isPressed ? 1f : 0f);
+        static float Axis(IInputDevice kb, Key positive, Key negative) =>
+            (kb.IsPressed(positive) ? 1f : 0f) - (kb.IsPressed(negative) ? 1f : 0f);
     }
 }

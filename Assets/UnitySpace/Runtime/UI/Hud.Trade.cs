@@ -136,7 +136,8 @@ namespace Unity.SpaceGod.UI
                               "  ·  " + Credits(lead.Profit) + "  ·  " + MarketIntel.AgeText(lead.AgeDays) +
                               (lead.Risk >= 0.05 ? "  ·  risk " + Percent(lead.Risk) : "") + (lead.BackDoor ? "  ·  back door" : "");
                 GUI.Label(new Rect(x, y, view.width - 140, rowH), line, small);
-                if (idle != null && !lead.BackDoor && GUI.Button(new Rect(view.xMax - 132, y, 128, rowH - 2), "Send " + idle.Name, button))
+                if (idle != null && !lead.BackDoor && GUI.Button(new Rect(view.xMax - 132, y, 128, rowH - 2), "Send " + idle.Name, button) &&
+                    !CoopSends("route", K(app.World.Holdings.Ships, idle), lead.From.Body, lead.To.Body)) // US-T43: an entry in co-op
                     app.ShowToast(app.World.Holdings.Order(idle, StandingOrder.TradeRoute(lead.From.Body, lead.To.Body))
                         ? "The " + idle.Name + " runs " + lead.From.Name + " - " + lead.To.Name
                         : "The " + idle.Name + " cannot take that route");
@@ -192,7 +193,8 @@ namespace Unity.SpaceGod.UI
                 GUI.contentColor = Color.white;
                 GUI.Label(new Rect(x, y, view.width - 200, rowH), offer.Title + "  ·  " + Credits(offer.Total) + " in all  ·  up " +
                     Math.Max(0, offer.ExpiresJd - jd).ToString("0", CultureInfo.InvariantCulture) + " d more", small);
-                if (candidate != null && GUI.Button(new Rect(view.xMax - 192, y, 188, rowH - 2), "Charter the " + candidate.Name, button))
+                if (candidate != null && GUI.Button(new Rect(view.xMax - 192, y, 188, rowH - 2), "Charter the " + candidate.Name, button) &&
+                    !CoopSends("charter", K(charters.Offers, offer))) // US-T43: an entry in co-op
                     app.ShowToast(charters.Take(offer, candidate, jd) != null ? "The " + candidate.Name + " goes out on charter to " + offer.Charterer.Name : "No longer on offer");
                 y += rowH;
             }
@@ -205,7 +207,7 @@ namespace Unity.SpaceGod.UI
                 GUI.contentColor = new Color(0.6f, 0.9f, 1f);
                 GUI.Label(new Rect(x, y, view.width - 120, rowH), "The " + c.Ship.Name + " to " + c.Charterer.Name + "  ·  " + Credits(c.RatePerDay) + " a day  ·  " +
                     c.DaysLeft(jd).ToString("0", CultureInfo.InvariantCulture) + " d left  ·  hire paid " + Credits(c.HirePaid) + "  ·  " + c.Ship.Ship.Cargo, small);
-                if (GUI.Button(new Rect(view.xMax - 112, y, 108, rowH - 2), "Recall", button))
+                if (GUI.Button(new Rect(view.xMax - 112, y, 108, rowH - 2), "Recall", button) && !CoopSends("recall", K(charters.Active, c))) // US-T43
                     app.ShowToast(charters.Recall(c, jd) ? "The " + c.Ship.Name + " is recalled" : "The account cannot pay the recall");
                 y += rowH;
                 if (y > view.yMax - rowH) return;
@@ -220,7 +222,7 @@ namespace Unity.SpaceGod.UI
             GUI.contentColor = Dim;
             GUI.Label(new Rect(x, y, view.width - 8, rowH), "Underwriters pay " + Percent(TradeRules.InsuranceCover.Value) + " of a hull lost, or a warehouse seized, for a premium a day that climbs with the risk", small);
             y += rowH;
-            void Row(string name, InsurancePolicy policy, (double cover, double premium, double risk) q, Func<InsurancePolicy> insure)
+            void Row(string name, InsurancePolicy policy, (double cover, double premium, double risk) q, Func<InsurancePolicy> insure, string coopKey) // US-T43: coopKey, what it insures for a co-op entry
             {
                 GUI.contentColor = policy != null ? new Color(0.55f, 1f, 0.6f) : q.risk >= TradeInsurance.Uninsurable ? new Color(1f, 0.55f, 0.45f) : Color.white;
                 string state = policy != null ? "insured for " + Credits(policy.Cover) + " at " + Credits(policy.PremiumPerDay) + " a day"
@@ -229,9 +231,9 @@ namespace Unity.SpaceGod.UI
                 GUI.Label(new Rect(x, y, view.width - 120, rowH), name + "  ·  " + state, small);
                 if (policy != null)
                 {
-                    if (GUI.Button(new Rect(view.xMax - 112, y, 108, rowH - 2), "Cancel", button)) ins.Cancel(policy, jd);
+                    if (GUI.Button(new Rect(view.xMax - 112, y, 108, rowH - 2), "Cancel", button) && !CoopSends("uninsure", coopKey)) ins.Cancel(policy, jd); // US-T43
                 }
-                else if (q.risk < TradeInsurance.Uninsurable && GUI.Button(new Rect(view.xMax - 112, y, 108, rowH - 2), "Insure", button))
+                else if (q.risk < TradeInsurance.Uninsurable && GUI.Button(new Rect(view.xMax - 112, y, 108, rowH - 2), "Insure", button) && !CoopSends("insure", coopKey)) // US-T43
                     app.ShowToast(insure() != null ? name + " is insured" : "The underwriters will not write it");
                 y += rowH;
             }
@@ -239,13 +241,13 @@ namespace Unity.SpaceGod.UI
             {
                 if (o.Lost || y > view.yMax - rowH) continue;
                 var owned = o;
-                Row("The " + o.Name, ins.Of(o), ins.Quote(o), () => ins.Insure(owned, jd));
+                Row("The " + o.Name, ins.Of(o), ins.Quote(o), () => ins.Insure(owned, jd), "s " + K(h.Ships, o)); // US-T43: the key
             }
             foreach (var p in h.Properties)
             {
                 if (p.Lost || p.Kind != PropertyKind.Warehouse || y > view.yMax - rowH) continue;
                 var prop = p;
-                Row("The " + p.Name, ins.Of(p), ins.Quote(p), () => ins.Insure(prop, jd));
+                Row("The " + p.Name, ins.Of(p), ins.Quote(p), () => ins.Insure(prop, jd), "p " + K(h.Properties, p)); // US-T43: the key
             }
             if (y == view.y + rowH)
             {

@@ -19,7 +19,8 @@ namespace Unity.SpaceGod
 
         /// <summary>Flags that go straight into the game, with no menu to click through.</summary>
         public static bool SkipsMenu =>
-            Bootstrap.HasCommandLineFlag("-demo") || Bootstrap.HasCommandLineFlag("-capture") || Bootstrap.HasCommandLineFlag("-continue");
+            Bootstrap.HasCommandLineFlag("-demo") || Bootstrap.HasCommandLineFlag("-capture") || Bootstrap.HasCommandLineFlag("-continue")
+            || Coop.CoopPeer.SkipsMenu; // US-T39: a co-op client (and the smoke host) goes straight in
 
         public static void NewGame() => Start(null);
 

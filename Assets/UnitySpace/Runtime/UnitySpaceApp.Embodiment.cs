@@ -22,7 +22,7 @@ namespace Unity.SpaceGod
         /// U.SPC-LAW-1): input here only submits commands stamped with <see cref="LocalSession.LocalPlayer"/>, and reads back
         /// what the session's authority says the local player holds. Replaced with a fresh one when a game is loaded.
         /// </summary>
-        LocalSession session = LocalSession.Create(seed: 0);
+        LocalSession session = Coop.CoopPeer.NewSession(); // US-T39: LocalSession.Create(seed: 0) single-player; every seat in co-op
 
         /// <summary>What the local player holds at a non-helm seat, as the session's state says, or null.</summary>
         IEmbodiable HeldNonHelm => session.State.SeatOf(session.LocalPlayer);
@@ -30,6 +30,7 @@ namespace Unity.SpaceGod
         /// <summary>Hands the local player's seat back to its AI, through the session.</summary>
         void ReleaseSeat()
         {
+            if (CoopRoutes(new ReleaseSeatCommand(session.LocalPlayer))) return; // US-T39: to the host in co-op
             session.Submit(new ReleaseSeatCommand(session.LocalPlayer));
             session.ApplyPending();
         }
@@ -46,6 +47,7 @@ namespace Unity.SpaceGod
         /// <summary>Moves the local player up from a mounted seat to its host, through the session: true if the host is held now.</summary>
         bool SeatToHost(IEmbodiable host)
         {
+            if (CoopRoutes(new MoveToHostCommand(session.LocalPlayer))) return true; // US-T39: to the host in co-op
             session.Submit(new MoveToHostCommand(session.LocalPlayer));
             session.ApplyPending();
             return host != null && Equals(HeldNonHelm, host);
@@ -100,6 +102,7 @@ namespace Unity.SpaceGod
                 return;
             }
             if (IsPiloting) ExitPiloting();
+            if (CoopTakeSeat(next)) return; // US-T39: to the host in co-op; the view follows when a frame grants it
             if (!SwitchSeat(next))
             {
                 ShowToast("Can't take " + next.Name + ": " + (next.Blocker ?? "out of reach"));
@@ -474,6 +477,7 @@ namespace Unity.SpaceGod
         /// </summary>
         void UpdateSeat(float dt)
         {
+            if (Coop.CoopPeer.Active) { CoopUpdateSeat(dt); return; } // US-T39: every player's seat, stepped on every peer
             var held = HeldNonHelm;
             if (held == null) return;
             var look = ClickPanelOpen ? Vector2.zero : Input.MouseDelta;

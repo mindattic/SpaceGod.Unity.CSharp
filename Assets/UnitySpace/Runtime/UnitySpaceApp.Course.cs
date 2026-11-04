@@ -28,6 +28,7 @@ namespace Unity.SpaceGod
         /// <summary>Plots the quickest open way over the gates to <paramref name="to"/> for the piloted hull.</summary>
         public void PlotCourse(StarSystem to)
         {
+            if (to != null && CoopSends("plot", to.Name)) return; // US-T43: the course is the shared helm's: into the frames
             var ship = Piloted.Ship;
             if (ship == null || to == null) return;
             if (to == ActiveSystem) { Course = null; return; }
@@ -51,6 +52,7 @@ namespace Unity.SpaceGod
         /// </summary>
         public bool EngageCourseAutopilot()
         {
+            if (CoopSends("autopilot")) return true; // US-T43: into the frames (it hands the shared helm to the crew)
             if (Course == null || Course.Done || !IsPiloting || Piloted.Ship != courseShip || CourseByCrew) return false;
             var ship = courseShip;
             var to = Course.Destination;
@@ -67,7 +69,9 @@ namespace Unity.SpaceGod
         /// <summary>Sends <paramref name="ship"/> (standing in the active system) on a course to <paramref name="to"/> under its crew.</summary>
         bool StartCrewCourse(Ship ship, StarSystem to, bool follow)
         {
-            var course = TravelCourse.Plan(Galaxy.Network, ActiveSystem, to, ship.Faction, Clock.Jd);
+            if (CoopSends("crew", ship.Id + " " + (follow ? 1 : 0) + " " + to.Name)) return true; // US-T43: into the frames (it sends the ship)
+            if (follow && !CoopActing) follow = false; // US-T43: another player's crew course: their view follows it, not this one
+            var course =TravelCourse.Plan(Galaxy.Network, ActiveSystem, to, ship.Faction, Clock.Jd);
             if (course == null || Galaxy.Traffic == null || Galaxy.Traffic.SendPlotted(ship, ActiveSystem, to, Clock.Jd) == null) return false;
             Course = course;
             courseShip = ship;
@@ -82,6 +86,7 @@ namespace Unity.SpaceGod
         /// <summary>The god view's trip to <paramref name="to"/> when a ship is followed: the ship is sent, and the view goes with it.</summary>
         bool TrySendFollowedShip(StarSystem to)
         {
+            if (CoopExecuting) return false; // US-T43: the asker's camera chose this (its "crew" entry), not this peer's
             if (SpaceCamera.Mode != Cameras.SpaceCamera.CameraMode.Focus || !SpaceCamera.FocusTarget.IsShip) return false;
             var ship = SpaceCamera.FocusTarget.Ship;
             // A house ship is the player's own money: sent through the gates by a stray click on the map it could be lost
@@ -133,7 +138,7 @@ namespace Unity.SpaceGod
             var where = SystemHolding(ship);
             // Inside a gate: nothing to see until it comes out.
             if (where == null) return;
-            if (where != ActiveSystem && courseFollow && !Travel.Active)
+            if (where != ActiveSystem && courseFollow && !Travel.Active && !CoopIsClient) // US-T43: the host's view takes the party (its Activate goes out with its frame)
             {
                 Activate(where);
                 SetSystemVisible(true);

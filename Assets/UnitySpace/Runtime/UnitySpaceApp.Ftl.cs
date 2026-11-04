@@ -216,7 +216,7 @@ namespace Unity.SpaceGod
             TankerDueS = -1;
             SpaceCamera.PilotLockTarget = Target.None;
             SpaceCamera.PilotView = null;
-            SpaceCamera.ExitFocus();
+            if (CoopHelmMine) SpaceCamera.ExitFocus(); // US-T43: the holder's view only (the cruise view below is everyone's)
             Select(Target.None);
 
             FtlCruise = c;
@@ -355,6 +355,7 @@ namespace Unity.SpaceGod
         /// </summary>
         public bool PlotFtlCourse(FtlTarget target, bool quiet = false)
         {
+            if (target != null && CoopSends("ftlplot", (quiet ? "1 " : "0 ") + target.Name)) return true; // US-T43: the shared helm's course: into the frames
             if (!IsPiloting || Piloted.Ship == null)
             {
                 ShowToast("Take the helm of a capital ship or an explorer (P) to plot an FTL course");
@@ -389,6 +390,7 @@ namespace Unity.SpaceGod
         /// <summary>Clears the plotted course (and lets go of the autopilot flying it).</summary>
         public void ClearFtlCourse()
         {
+            if (CoopSends("ftlclear")) return; // US-T43: into the frames (the loop's own Delete key is already in them)
             if (FtlAutopilot.Active) DisengageFtlAutopilot(null);
             PlottedCourse = null;
             ShowToast("FTL course cleared");
@@ -420,6 +422,7 @@ namespace Unity.SpaceGod
         /// </summary>
         public bool EngageFtlAutopilot()
         {
+            if (CoopSends("ftlauto")) return true; // US-T43: into the frames (the loop's own End key is already in them)
             if (!IsPiloting || Piloted.Ship == null)
             {
                 ShowToast("Take the helm of a capital ship or an explorer (P) to fly an FTL course");

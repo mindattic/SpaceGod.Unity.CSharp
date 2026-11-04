@@ -161,6 +161,7 @@ namespace Unity.SpaceGod
         /// <summary>Replaces the running simulation with the one saved in <paramref name="slot"/>.</summary>
         public bool LoadFrom(string slot)
         {
+            if (CoopRoutesLoad(slot)) return false; // US-T43: a client's load is a request to the host, whose save every peer loads
             // (Loading drops whatever the session held, a hulk latched to included: only a trip between the stars stops it.)
             string blocked = Travel.Active || InFtlCruise || Ftl.Stage != FtlStage.Idle ? SaveBlocker() : null;
             if (blocked != null)
@@ -180,7 +181,7 @@ namespace Unity.SpaceGod
                 ShowToast("Could not load " + SlotName(slot) + ": " + e.Message);
                 return false;
             }
-            ApplyLoaded(data);
+            CoopLoadingHere(() => ApplyLoaded(data)); // US-T43: ApplyLoaded(data); the loaded helm is everyone's in co-op
             ShowSaves = false;
             ShowToast("Loaded " + SlotName(slot) + "  (" + DescribeSave(header) + ")");
             return true;
@@ -192,7 +193,7 @@ namespace Unity.SpaceGod
             var s = data.Session;
             s.ActiveSystem = ActiveSystem.Name;
             s.ScaleGoal = ScaleGoal;
-            if (IsPiloting)
+            if (!Piloted.IsNone) // US-T43: was IsPiloting (in co-op whoever flies it: the host's save is everyone's)
             {
                 s.Piloted = Piloted.Ship;
                 s.PilotFrameBody = pilotFrameBody;
@@ -246,6 +247,7 @@ namespace Unity.SpaceGod
                 FocusSystemOverview();
             }
             autosaveDueS = AutosaveIntervalS;
+            CoopLoaded(); // US-T39
         }
 
         /// <summary>Lets go of everything the session held in the old galaxy, without touching it (it is about to be dropped).</summary>
@@ -253,7 +255,7 @@ namespace Unity.SpaceGod
         {
             // A fighter or gun held in the world being left goes back to its AI there (U.SPC-T422); the loaded game starts in command.
             ReleaseSeat();
-            session = LocalSession.Create(seed: 0);
+            session = Coop.CoopPeer.NewSession(); // US-T39: LocalSession.Create(seed: 0) single-player
             commandWarp = -1;
             commandFocus = Target.None;
             Piloted = Target.None;

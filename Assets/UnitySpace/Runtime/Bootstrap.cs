@@ -54,5 +54,26 @@ namespace Unity.SpaceGod
                 if (string.Equals(a, flag, StringComparison.OrdinalIgnoreCase)) return true;
             return false;
         }
+
+        static UnitySpaceApp app;
+
+        /// <summary>US-T39 (co-op): the app of the game scene, or null (the main menu, or between scenes).</summary>
+        public static UnitySpaceApp App
+        {
+            get
+            {
+                if (app == null) app = UnityEngine.Object.FindAnyObjectByType<UnitySpaceApp>();
+                return app != null ? app : null;
+            }
+        }
+
+        /// <summary>US-T39 (co-op): the value of a <c>-Name=value</c> argument, or null.</summary>
+        public static string CommandLineValue(string name)
+        {
+            string prefix = name + "=";
+            foreach (var a in Environment.GetCommandLineArgs())
+                if (a.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return a.Substring(prefix.Length).Trim('"');
+            return null;
+        }
     }
 }

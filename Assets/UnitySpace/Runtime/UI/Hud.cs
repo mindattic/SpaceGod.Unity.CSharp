@@ -2433,13 +2433,11 @@ namespace Unity.SpaceGod.UI
                 if (alongside && !port.Owner.IsPirate && (!o.Record.Wanted || o.Record.WantedBy(port.Owner)) &&
                     GUI.Button(new Rect(r.xMax - 180, y, 168, 20), "Hand over  +" + Credits(o.Record.TotalBounty), button))
                 {
-                    double paid = outlaws.Deliver(o, port, app.Clock.Jd);
-                    app.ShowToast(o.Fate == OutlawFate.Captured ? o.Name + " handed over at " + port.Name + (paid > 0 ? " for " + Credits(paid) : "") : "Not welcome here");
+                    if (!CoopSends("deliver", K(port), K(held, o))) DeliverOutlaw(outlaws, o, port); // US-T43: an entry in co-op; the original's lines in DeliverOutlaw (Hud.Coop.cs)
                 }
                 else if (alongside && port.Owner.IsPirate && GUI.Button(new Rect(r.xMax - 180, y, 168, 20), "Ransom  +" + Credits(Outlaws.RansomFor(o)), button))
                 {
-                    double paid = outlaws.Ransom(o, port, app.Clock.Jd);
-                    app.ShowToast(paid > 0 ? o.Name + " ransomed back for " + Credits(paid) : "The " + port.Owner.Name + " will not pay");
+                    if (!CoopSends("ransom", K(port), K(held, o))) RansomOutlaw(outlaws, o, port); // US-T43: likewise
                 }
                 y += 22;
             }
@@ -2497,19 +2495,9 @@ namespace Unity.SpaceGod.UI
                 float y = r.y + 48 + i * rowH;
                 GUI.contentColor = c.Urgency >= 0.6 ? new Color(1f, 0.78f, 0.35f) : Color.white;
                 GUI.Label(new Rect(r.x + 12, y, w - 110, rowH), Contracts.Describe(c, jd), small);
-                if (alongside && GUI.Button(new Rect(r.xMax - 90, y, 78, rowH - 2), "Take", button))
-                {
-                    var outcome = contracts.Take(c, ship, true, jd);
-                    app.ShowToast(outcome switch
-                    {
-                        Contracts.TakeOutcome.Ok => "Contract taken: " + c.Title + ", due in " + c.DeadlineDays.ToString("0", CultureInfo.InvariantCulture) + " d",
-                        Contracts.TakeOutcome.NotOffered => c.Patron.Name + " offers you no contracts",
-                        Contracts.TakeOutcome.NoRoom => "No room aboard for that",
-                        Contracts.TakeOutcome.Unarmed => "That job wants an armed ship",
-                        Contracts.TakeOutcome.NotHere => "Fly alongside " + c.Board.Name + " to sign",
-                        _ => "No longer on offer",
-                    });
-                }
+                if (alongside && GUI.Button(new Rect(r.xMax - 90, y, 78, rowH - 2), "Take", button) &&
+                    !CoopSends("ctake", K(port), i)) // US-T43: an entry in co-op
+                    TakeContract(contracts, c, ship, jd); // US-T43: the original's lines, moved into TakeContract (Hud.Coop.cs)
             }
             if (ownRows > 0)
             {
@@ -2522,7 +2510,7 @@ namespace Unity.SpaceGod.UI
                     float y = y0 + 22 + i * rowH;
                     GUI.contentColor = c.DueJd - jd < 1 ? new Color(1f, 0.55f, 0.45f) : new Color(0.6f, 0.9f, 1f);
                     GUI.Label(new Rect(r.x + 12, y, w - 110, rowH), Contracts.Describe(c, jd), small);
-                    if (GUI.Button(new Rect(r.xMax - 90, y, 78, rowH - 2), "Abandon", button) && contracts.Abandon(c, jd))
+                    if (GUI.Button(new Rect(r.xMax - 90, y, 78, rowH - 2), "Abandon", button) && !CoopSends("cabandon", i) && contracts.Abandon(c, jd)) // US-T43: an entry in co-op
                         app.ShowToast("Contract abandoned: " + c.Title);
                 }
             }
@@ -2572,11 +2560,11 @@ namespace Unity.SpaceGod.UI
             float x = r.x + 12, y = r.y + 30;
             if (purse != null)
             {
-                if (GUI.Button(new Rect(x, y, 150, 20), "Deposit 10 M cr", button))
+                if (GUI.Button(new Rect(x, y, 150, 20), "Deposit 10 M cr", button) && !CoopSends("deposit")) // US-T43: an entry in co-op (as each button below)
                     app.ShowToast(h.Deposit(purse, 1e7, jd) ? "10 M cr into the house account" : "The purse cannot spare it");
-                if (GUI.Button(new Rect(x + 156, y, 150, 20), "Withdraw 10 M cr", button))
+                if (GUI.Button(new Rect(x + 156, y, 150, 20), "Withdraw 10 M cr", button) && !CoopSends("withdraw"))
                     app.ShowToast(h.Withdraw(purse, 1e7, jd) ? "10 M cr out to the " + purse.Name : "Not that much in the account");
-                if (!h.Owns(flown) && GUI.Button(new Rect(x + 312, y, 220, 20), "Take " + flown.Name + " into the fleet", button))
+                if (!h.Owns(flown) && GUI.Button(new Rect(x + 312, y, 220, 20), "Take " + flown.Name + " into the fleet", button) && !CoopSends("enlist"))
                     app.ShowToast(h.Enlist(flown, jd) != null ? flown.Name + " flies your flag now" : "It cannot join the fleet");
             }
             else
@@ -2595,17 +2583,18 @@ namespace Unity.SpaceGod.UI
                 if (h.CanBuyAt(port))
                     foreach (var cls in new[] { ShipClass.Freighter, ShipClass.Miner, ShipClass.Courier, ShipClass.Destroyer })
                     {
-                        if (GUI.Button(new Rect(bx, y, 112, 20), ShipClassSpec.Of(cls).DisplayName + " " + Credits(Economy.HullPrice(cls)), button))
+                        if (GUI.Button(new Rect(bx, y, 112, 20), ShipClassSpec.Of(cls).DisplayName + " " + Credits(Economy.HullPrice(cls)), button) &&
+                            !CoopSends("hull", K(port), (int)cls)) // US-T43
                         {
                             var bought = h.Buy(port, cls, null, jd);
                             app.ShowToast(bought != null ? "Bought the " + bought.Name + " at " + port.Name : "Cannot afford it here");
                         }
                         bx += 116;
                     }
-                if (GUI.Button(new Rect(bx, y, 96, 20), "Warehouse", button))
+                if (GUI.Button(new Rect(bx, y, 96, 20), "Warehouse", button) && !CoopSends("warehouse", K(port))) // US-T43
                     app.ShowToast(h.BuyWarehouse(port, jd) != null ? "A warehouse at " + port.Name + " for " + Credits(Holdings.WarehousePrice) : "Not for sale");
                 bx += 100;
-                if (GUI.Button(new Rect(bx, y, 108, 20), "5% share " + Credits(Holdings.SharePrice(port, 0.05)), button))
+                if (GUI.Button(new Rect(bx, y, 108, 20), "5% share " + Credits(Holdings.SharePrice(port, 0.05)), button) && !CoopSends("share", K(port))) // US-T43
                     app.ShowToast(h.BuyShare(port, 0.05, jd) != null ? "5% of " + port.Name + " is yours" : "Not for sale");
             }
             else
@@ -2619,7 +2608,8 @@ namespace Unity.SpaceGod.UI
                 float cx = r.xMax - 12 - 2 * 150;
                 foreach (var ore in new[] { Good.NickelIron, Good.Water })
                 {
-                    if (GUI.Button(new Rect(cx, y + 24, 146, 20), "Claim " + GoodInfo.Of(ore).Name.ToLowerInvariant() + " " + Credits(Holdings.ClaimPrice(ore)), button))
+                    if (GUI.Button(new Rect(cx, y + 24, 146, 20), "Claim " + GoodInfo.Of(ore).Name.ToLowerInvariant() + " " + Credits(Holdings.ClaimPrice(ore)), button) &&
+                        !CoopSends("claim", sel.Body, (int)ore)) // US-T43
                         app.ShowToast(h.StakeClaim(sel.Body, ore, jd) != null ? "Claim staked on " + world.Catalog[sel.Body].Name : "Cannot stake that claim");
                     cx += 150;
                 }
@@ -2641,7 +2631,7 @@ namespace Unity.SpaceGod.UI
                 GUI.contentColor = o.Ship == flown ? new Color(0.55f, 1f, 0.6f) : Color.white;
                 string captain = (o.Captain != null ? "Capt. " + o.Captain.Name : "no captain") + (world.Trade?.Insurance.Of(o) != null ? "  ·  insured" : "");
                 GUI.Label(new Rect(4, ly, 540, rowH), o.Name + "  (" + o.Ship.Spec.DisplayName + ")  ·  " + captain + "  ·  " + o.Orders.Describe(world.Catalog) + "  ·  net " + Credits(o.Net), small);
-                if (GUI.Button(new Rect(w - 36 - 236, ly, 70, rowH - 2), o.Captain == null ? "Hire" : "Dismiss", button))
+                if (GUI.Button(new Rect(w - 36 - 236, ly, 70, rowH - 2), o.Captain == null ? "Hire" : "Dismiss", button) && !CoopSends("captain", K(h.Ships, o))) // US-T43
                 {
                     if (o.Captain == null) app.ShowToast("Captain " + h.Hire(o, jd).Name + " takes the " + o.Name);
                     else h.Dismiss(o, jd);
@@ -2651,7 +2641,8 @@ namespace Unity.SpaceGod.UI
                     GUI.contentColor = Dim;
                     GUI.Label(new Rect(w - 36 - 162, ly, 160, rowH), "on charter (\\)", small);
                 }
-                else if (GUI.Button(new Rect(w - 36 - 162, ly, 160, rowH - 2), "Orders: next", button))
+                else if (GUI.Button(new Rect(w - 36 - 162, ly, 160, rowH - 2), "Orders: next", button) &&
+                         !CoopSends("orders", K(h.Ships, o), app.CoopTargetKey(sel).Replace(' ', '|'))) // US-T43
                 {
                     var next = NextOrders(o, sel);
                     app.ShowToast(o.Name + ": " + next.Describe(world.Catalog));
@@ -2729,7 +2720,7 @@ namespace Unity.SpaceGod.UI
             // over at right now -- not one merely being looked at from across the system.
             bool canTrade = market != null && app.CanTradeNow(market);
             // Prices seen in port go into the trade desk's intelligence (U.SPC-T426).
-            if (canTrade && Event.current.type == EventType.Layout) app.World.Trade?.Intel.Observe(market, app.Clock.Jd, "seen in port");
+            if (canTrade && Event.current.type == EventType.Layout && !CoopObserve(market)) app.World.Trade?.Intel.Observe(market, app.Clock.Jd, "seen in port"); // US-T43: an entry in co-op
             var law = app.World.Law;
             var pilotRecord = app.IsPiloting && law != null ? law.Player : null;
             bool lawful = market != null && market.Owner != null && !market.Owner.IsPirate;
@@ -2772,10 +2763,9 @@ namespace Unity.SpaceGod.UI
                 GUI.Label(new Rect(r.x + 12, r.y + 50 + extra, w - 230, 18), refused ? "DOCKING REFUSED: " + market.Owner.Name + " will not let you in"
                     : "WANTED by " + market.Owner.Name, small);
                 // Fines are paid at the port's office even when it will not let the ship dock to trade.
-                if (wantedHere && GUI.Button(new Rect(r.xMax - 210, r.y + 48 + extra, 196, 20), "Pay bounty  " + Credits(pilotRecord.BountyBy(market.Owner)), button))
-                    app.ShowToast(law.PayFine(app.World.PilotedShip, market.Owner, app.Clock.Jd, out double paid)
-                        ? "Paid " + Credits(paid) + " to " + market.Owner.Name + ": the bounty is lifted"
-                        : "Not enough credits to pay off the bounty");
+                if (wantedHere && GUI.Button(new Rect(r.xMax - 210, r.y + 48 + extra, 196, 20), "Pay bounty  " + Credits(pilotRecord.BountyBy(market.Owner)), button) &&
+                    !CoopSends("bounty", K(market))) // US-T43: an entry in co-op
+                    PayBounty(market); // US-T43: the original's call, moved into PayBounty (Hud.Coop.cs)
                 GUI.contentColor = Dim;
             }
             float top = r.y + 50 + extra + lawRow;
@@ -2838,6 +2828,7 @@ namespace Unity.SpaceGod.UI
 
         void ClickBuy(Settlement market, Good good)
         {
+            if (CoopSends("buy", K(market), (int)good, tradeCrates)) return; // US-T43: an entry in co-op
             var ship = app.World.PilotedShip;
             var outcome = app.Economy.BuyIntoHold(ship, market, good, tradeCrates, out int bought, out var stoppedBy);
             if (bought > 0)
@@ -2864,6 +2855,7 @@ namespace Unity.SpaceGod.UI
 
         void ClickRefuel(Settlement market)
         {
+            if (CoopSends("refuel", K(market))) return; // US-T43: an entry in co-op
             var ship = app.World.PilotedShip;
             var outcome = app.Economy.RefuelAt(ship, market, out double tonnes, out double cost);
             app.ShowToast(outcome switch
@@ -2881,6 +2873,7 @@ namespace Unity.SpaceGod.UI
 
         void ClickSell(Settlement market, Good good)
         {
+            if (CoopSends("sell", K(market), (int)good, tradeCrates)) return; // US-T43: an entry in co-op
             var ship = app.World.PilotedShip;
             var outcome = app.Economy.SellFromHold(ship, market, good, tradeCrates, out int sold);
             if (sold > 0)
@@ -2947,11 +2940,9 @@ namespace Unity.SpaceGod.UI
             if (brig > 0 || ship.Prisoners > 0)
             {
                 GUI.Label(new Rect(r.x + 230, r.y + 46, 200, 18), "Brig " + ship.Prisoners.ToString("0", CultureInfo.InvariantCulture) + " / " + brig.ToString("0", CultureInfo.InvariantCulture) + " prisoners", small);
-                if (ship.Prisoners > 0 && port != null && GUI.Button(new Rect(r.xMax - 170, r.y + 44, 158, 20), "Hand over  +" + Credits(ship.PrisonerBounty), button))
-                {
-                    double paid = Outfitting.HandOverPrisoners(app.Economy, ship, port);
-                    app.ShowToast(paid > 0 ? "Prisoners handed over at " + port.Name + " for " + Credits(paid) : "Not welcome here");
-                }
+                if (ship.Prisoners > 0 && port != null && GUI.Button(new Rect(r.xMax - 170, r.y + 44, 158, 20), "Hand over  +" + Credits(ship.PrisonerBounty), button) &&
+                    !CoopSends("prisoners", K(port))) // US-T43: an entry in co-op
+                    HandOverPrisoners(ship, port); // US-T43: the original's lines, moved into HandOverPrisoners (Hud.Coop.cs)
             }
             GUI.contentColor = Dim;
             GUI.Label(new Rect(r.x + 12, r.y + 64, w - 24, 18), yard != null
@@ -3071,6 +3062,14 @@ namespace Unity.SpaceGod.UI
             GUI.contentColor = Color.white;
             if (current || !q.InStock || !builds) return;
             if (!GUI.Button(new Rect(x + w - 100, y - 1, 84, rowH - 1), strip ? "Strip" : "Fit", button)) return;
+            if (CoopSendsOutfit(yard, option)) return; // US-T43: an entry in co-op
+            OutfitApply(ship, yard, loadout, option); // US-T43: the original's lines below, moved into OutfitApply so a frame can run them too
+        }
+
+        void OutfitApply(Ship ship, Settlement yard, Loadout loadout, (ModuleKind? module, FacilityKind facility, string name) option)
+        {
+            int hardpoints = loadout.Slots.Count;
+            bool onHardpoint = outfitSlot < hardpoints, strip = !onHardpoint && option.facility == null;
             string what = strip ? loadout.Facilities[outfitSlot - hardpoints].Name : option.name;
             OutfitQuote paid;
             var outcome = onHardpoint ? Outfitting.Fit(app.Economy, ship, yard, outfitSlot, option.module, out paid)

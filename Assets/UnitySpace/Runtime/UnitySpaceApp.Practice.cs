@@ -32,6 +32,7 @@ namespace Unity.SpaceGod
             if (IsPiloting) ExitPiloting();
             // Out of any screen the spawn was asked from (the spawn grid, the galaxy map): straight to the helm.
             ShowSpawn = ShowGalaxyMap = ShowPicker = false;
+            if (CoopSpawns("practice", "", frame, offsetKm, forward)) return; // US-T43: the rest on every peer (CoopSpawnPractice)
 
             double jd = Clock.Jd;
             var frameHelio = Ephemeris.Helio(frame);

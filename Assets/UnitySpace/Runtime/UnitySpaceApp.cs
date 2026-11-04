@@ -63,7 +63,7 @@ namespace Unity.SpaceGod
 
         /// <summary>The ship under direct player control, if any (ship-only, or <see cref="Target.None"/>).</summary>
         public Target Piloted { get; private set; } = Target.None;
-        public bool IsPiloting => !Piloted.IsNone;
+        public bool IsPiloting => !Piloted.IsNone && CoopHelmHere; // US-T43: in co-op the helm is everyone's in the shared steps, the holder's elsewhere
 
         /// <summary>Where the piloted ship really is (its body frame and true km offset) and how fast it is
         /// flying: its schedule shows only the spot it was pinned at when the helm was taken.</summary>
@@ -108,7 +108,7 @@ namespace Unity.SpaceGod
         /// hull's own roof and starboard axes, so steering stays screen-relative however the hull has
         /// rolled, and it can point anywhere -- straight up, down or behind -- with no gimbal clamp.</summary>
         DVec3 pilotAim = DVec3.UnitX;
-        static float PilotLookSensitivity => SpaceCamera.LookSensitivity;
+        static float PilotLookSensitivity => float.IsNaN(CoopLookSensitivity) ? SpaceCamera.LookSensitivity : CoopLookSensitivity; // US-T43: the helm holder's in co-op
 
         /// <summary>The free-aim view's roof (see <see cref="PilotAim.Look"/>): it turns with the crosshair and
         /// follows the hull's roll, so the mouse stays screen-relative.</summary>
@@ -246,6 +246,7 @@ namespace Unity.SpaceGod
                 ShowToast("Nobody to hail: lock or select a ship of another polity first (F12 hails it)");
                 return;
             }
+            if (UI.GalaxyMapScreen.CoopSendsHail(this, from, to)) return; // US-T47: the hail at its frame on every peer, the envoy opened here
             ShowToast(statecraft.Hail(from, to, Clock.Jd));
             if (!Statecraft.Party(to)) return;
             EnvoyTo = to;
@@ -258,7 +259,8 @@ namespace Unity.SpaceGod
 
         /// <summary>A screen the player clicks through is open (market, cargo hold, spawn grid): the cursor is
         /// freed for it, so the mouse stops steering (and firing) the piloted hull meanwhile.</summary>
-        bool ClickPanelOpen => !ScreenCleared && (ShowSpawn || ShowSaves || ShowGalaxyMap || ShowHelp || (ShowHud && (ShowMarket || ShowCargo || ShowNews || ShowOutfit || ShowBounties || ShowContracts || ShowFleet || ShowTrade || ShowPicker))); // a cleared screen (F11) shows none of them; market, cargo, outfitting, bounties, contracts and news are HUD panels, hidden with it
+        bool ClickPanelOpen => coopPanelOverride ?? // US-T43: the helm holder's, while its frame is flown in co-op
+            !ScreenCleared && (ShowSpawn || ShowSaves || ShowGalaxyMap || ShowHelp || (ShowHud && (ShowMarket || ShowCargo || ShowNews || ShowOutfit || ShowBounties || ShowContracts || ShowFleet || ShowTrade || ShowPicker))); // a cleared screen (F11) shows none of them; market, cargo, outfitting, bounties, contracts and news are HUD panels, hidden with it
         public bool ShowLanes { get; set; } = true;
 
         /// <summary>Satellite constellations (thousands of points round Earth); off by default, K toggles.</summary>
@@ -508,6 +510,7 @@ namespace Unity.SpaceGod
             SpaceCamera.SetPose(SpaceCamera.ScenePosition, SpaceCamera.Rotation);
             // Each system keeps its own sky (U.SPC-T595); the last one stays up until this one has loaded.
             Sky?.Show(system.Name);
+            CoopActivated(system); // US-T39: the host's frame tells its clients
         }
 
         /// <summary>Hides the active system's views (between the stars) or shows them again.</summary>
@@ -521,6 +524,7 @@ namespace Unity.SpaceGod
         public void TravelTo(StarSystem system)
         {
             if (system == null || system == ActiveSystem || Travel.Active) return;
+            if (CoopRefusesTravel(system)) return; // US-T39/US-T43: in co-op the party travels together, or not while another player is at the controls
             // Already on the way somewhere under the hull's own drive (U.SPC-T417).
             if (InFtlCruise) { ShowToast("Under FTL for " + FtlCruise.ToName + ": the view goes where the hull goes"); return; }
             // The pilot session belongs to this system's ship and world: the gate is the way across while flying.
@@ -529,6 +533,7 @@ namespace Unity.SpaceGod
             if (IsPiloting) { PlotCourse(system); return; }
             // A ship followed in the god view is sent on the course and the view goes with it (U.SPC-T516); no ship, the view's own trip.
             if (TrySendFollowedShip(system)) return;
+            if (CoopPartyTrip(system)) return; // US-T43: the trip goes into the frames; the host's view makes it, every peer arrives
             Select(Target.None);
             Travel.Begin(system);
         }
@@ -632,7 +637,8 @@ namespace Unity.SpaceGod
 
         void Update()
         {
-            float dt = Mathf.Min(Time.unscaledDeltaTime, 0.1f);
+            if (CoopUpdateHeld()) return; // US-T39: a co-op client's Update runs on the host's frames only (CoopNet)
+            float dt = Mathf.Min(CoopUnscaledDeltaTime(), 0.1f); // US-T39: Time.unscaledDeltaTime, the host's seconds on a client
             bool overUi = IsPointerOverUi();
             Input.Poll(overUi, ModelViewer.CapturesInput);
             // The galaxy map turns with its own drag: the camera behind it does not look about meanwhile.
@@ -640,7 +646,7 @@ namespace Unity.SpaceGod
             // The pause menu has the frame: nothing else moves, and the stick and trigger do nothing, until it closes.
             if (pauseMenu.IsOpen)
             {
-                pauseMenu.Update(Input.Escape, Time.unscaledDeltaTime);
+                pauseMenu.Update(Input.Escape, CoopUnscaledDeltaTime()); // US-T39: was Time.unscaledDeltaTime
                 FreeCursorForMenu();
                 return;
             }
@@ -657,13 +663,13 @@ namespace Unity.SpaceGod
             // The hull flies in real seconds while the battle it is in steps in sim seconds (U.SPC-T555): under warp the
             // AI units would outrun it and the swept collision test (which assumes real-dt motion) would miss them, so
             // time is held at real speed for as long as the piloted hull is in a battle ('.' is refused at the helm).
-            if (IsPiloting && Piloted.Ship?.Battle != null && Clock.WarpIndex > 0)
+            if (!Piloted.IsNone && Piloted.Ship?.Battle != null && Clock.WarpIndex > 0) // US-T43: was IsPiloting (any player's helm holds the shared clock)
             {
                 Clock.SetWarp(0);
                 ShowToast("Time warp is held at real time while the helm is in a battle");
             }
 
-            Clock.Advance(dt);
+            CoopAdvance(dt); // US-T39: Clock.Advance(dt), in lockstep with the host in co-op
             Galaxy.Update(Clock.Jd);
             RefreshCharts();
             UpdateSaves(dt);
@@ -672,16 +678,16 @@ namespace Unity.SpaceGod
             AnimateScale(dt);
             Scale.Layout(Ephemeris, bodyScene);
             UpdateRadii();
-            UpdatePiloting(dt);
+            CoopUpdatePiloting(dt); // US-T43: UpdatePiloting(dt), on the helm holder's frame of input on every peer in co-op
             UpdateSeat(dt);
             ShowLawNotices();
             UpdateShips(dt);
             Structures.Layout();
-            if (!Travel.Active && !InFtlCruise) World.UpdateAdventures(Clock.Jd, PlayerHelioKm());
+            CoopUpdateAdventures(!Travel.Active && !InFtlCruise); // US-T39: was `if (that) World.UpdateAdventures(Clock.Jd, PlayerHelioKm());`, the host's call in co-op
 
-            DropLostTargets();
+            CoopShared(DropLostTargets); // US-T43: DropLostTargets(); a helm lost is lost on every peer
             BattleTime();
-            UpdateCourseShip();
+            CoopShared(UpdateCourseShip); // US-T43: UpdateCourseShip(); the course is the shared helm's on every peer
             if (Travel.Active) Travel.Update(dt);
             // Between the stars under the hull's own drive (U.SPC-T417): the view goes with it.
             else if (InFtlCruise) UpdateFtlCruiseView(dt);
@@ -1024,6 +1030,7 @@ namespace Unity.SpaceGod
         /// </summary>
         void EnterPiloting(Target t)
         {
+            if (CoopRoutesHelmTake(t)) return; // US-T39/US-T43: in co-op a take goes into the frames, and every peer takes it there
             var ship = t.Ship;
             Piloted = t;
             // A fresh helm: no drives-down timer left over from the hull flown before (spawned or loaded in the same frame).
@@ -1075,8 +1082,8 @@ namespace Unity.SpaceGod
             laneRejoinable = false;
             if (!riding && (ship.Battle == null || ship.Orbit == null)) PinWherePiloted(ship);
 
-            Select(t);
-            SpaceCamera.EnterPilotChase(t, 6);
+            if (CoopHelmMine) Select(t); // US-T43: the holder's view (every peer flies the helm, one watches from it)
+            if (CoopHelmMine) SpaceCamera.EnterPilotChase(t, 6); // US-T43
             Clock.SetWarp(0);
             ShowToast("Piloting " + ship.Name + ", " + Clock.Warp.Label + "  (" + HelmControls.Of(ship).Hint + "; P to release, . to speed up, Left-click to fire, T to lock a target, Z/X to roll, F flight assist, hold J to cruise)");
             if (riding)
@@ -1105,6 +1112,7 @@ namespace Unity.SpaceGod
             var offsetKm = Scale.InverseLocalOffset(Catalog[frame], SpaceCamera.ScenePosition - BodyScene(frame));
             var forwardUnity = SpaceCamera.Rotation * Vector3.forward;
             var forward = new DVec3(forwardUnity.x, forwardUnity.y, forwardUnity.z).SwapYZ;
+            if (CoopSpawns("spawn", (int)cls + " " + (hostile ? 1 : 0), frame, offsetKm, forward)) return; // US-T43: the rest on every peer (CoopSpawnShip)
 
             var faction = hostile ? World.Pirates : World.Sol;
             string name = "Sandbox " + cls + " " + (++spawnedCount);
@@ -1145,7 +1153,7 @@ namespace Unity.SpaceGod
         void SeedPilot(DVec3 offsetKm, DVec3 velocityKmS, DVec3 facing)
         {
             pilot = PilotState.At(offsetKm, velocityKmS, facing);
-            var upUnity = SpaceCamera.UpFrame * Vector3.up;
+            var upUnity = (CoopUpFrame ?? SpaceCamera.UpFrame) * Vector3.up; // US-T43: the helm holder's frame in co-op
             var upReference = new DVec3(upUnity.x, upUnity.y, upUnity.z).SwapYZ;
             var level = upReference - pilot.Forward * DVec3.Dot(upReference, pilot.Forward);
             if (level.LengthSquared > 1e-6) pilot.Up = level.Normalized;
@@ -1173,13 +1181,14 @@ namespace Unity.SpaceGod
             pilotCruise = default;
             // A trigger held as the helm was taken is not still held by the next hull flown.
             helmTriggerWas = false;
-            SpaceCamera.PilotLockTarget = Target.None;
-            SpaceCamera.ExitFocus();
+            if (CoopHelmMine) SpaceCamera.PilotLockTarget = Target.None; // US-T43: the holder's view only
+            if (CoopHelmMine) SpaceCamera.ExitFocus(); // US-T43
             ShowToast("The " + ship.Name + " has been boarded and taken");
         }
 
         void ExitPiloting()
         {
+            if (CoopRoutesHelmRelease()) return; // US-T43: a release the player asks for goes into the frames in co-op
             // A charge stops where it is (U.SPC-T417): the crew does not jump on its own.
             StopFtl();
             EndSalvage(null);
@@ -1199,7 +1208,7 @@ namespace Unity.SpaceGod
             pilotLockUnit = null;
             pilotBoosting = false;
             pilotCruise = default;
-            SpaceCamera.PilotLockTarget = Target.None;
+            if (CoopHelmMine) SpaceCamera.PilotLockTarget = Target.None; // US-T43: the holder's view only
             bool rode = ship != null && !ship.Destroyed && ship.Battle == null && ship.Phase == ShipPhase.Lane;
             EndRide();
             // Mid-ride the crew rides it on: the fleet brings it off at the far ramp and on into that system.
@@ -1220,7 +1229,7 @@ namespace Unity.SpaceGod
                     Fleet.ScheduleNext(ship, Clock.Jd);
                 }
             }
-            SpaceCamera.ExitFocus();
+            if (CoopHelmMine) SpaceCamera.ExitFocus(); // US-T43: the holder's view only
             // A trigger held as the helm was let go is not still held by the next hull taken.
             helmTriggerWas = false;
             // A hull shot to pieces under the helm ends the session as a loss, not as a release the player chose.
@@ -1587,6 +1596,7 @@ namespace Unity.SpaceGod
         /// <summary>Calls an emergency tanker out to the piloted ship (dearer than a port: a call-out fee and three times the going rate).</summary>
         public void CallTanker()
         {
+            if (CoopSends("tanker")) return; // US-T43: into the frames (the tanker's timer is the shared helm's)
             if (!IsPiloting || TankerDueS >= 0) return;
             var ship = Piloted.Ship;
             if (ship == null || Propulsion.TankerLoad(ship) < 1) { ShowToast("Tanks are full"); return; }
@@ -1653,7 +1663,7 @@ namespace Unity.SpaceGod
             TankerDueS = -1;
 
             Select(Piloted);
-            SpaceCamera.EnterPilotChase(Piloted, 6);
+            if (CoopHelmMine) SpaceCamera.EnterPilotChase(Piloted, 6); // US-T43: the holder's view only
             ShowToast("Jumped to " + destination.Name.ToUpperInvariant() + " through the gate");
             return true;
         }
@@ -2205,6 +2215,7 @@ namespace Unity.SpaceGod
 
         public void ShowToast(string message)
         {
+            if (coopMuteToasts > 0) return; // US-T43: another player's action, replayed here
             Toast = message;
             ToastAge = 0;
         }
@@ -2212,10 +2223,11 @@ namespace Unity.SpaceGod
         public void ResetToNow()
         {
             // A reset can rebuild the galaxy out from under the piloted ship (the HUD's Now button lands here too).
-            if (AtControls) { ShowToast("Release the helm or seat (P) before resetting the time"); return; }
+            if (CoopAtControls()) { ShowToast("Release the helm or seat (P) before resetting the time"); return; } // US-T43: was AtControls (in co-op: anyone's)
             // Nor under the hull's own FTL drive: the crossing holds the old galaxy's systems (the Now button reaches here too).
             if (InFtlCruise) { ShowToast("Not under FTL: wait until the drive drops out before resetting the time"); return; }
-            double now = Astro.JulianDate(DateTime.UtcNow);
+            double now = CoopNow ?? Astro.JulianDate(DateTime.UtcNow); // US-T43: in co-op the asker's now, the same on every peer
+            if (CoopSends("reset", Coop.Wire.D(now))) return; // US-T43: into the frames
             bool backwards = now < Clock.Jd;
             // Rebuilding the systems mid-trip would leave the trip pointing at the old ones: land first.
             if (backwards && Travel.Active) Travel.Finish();

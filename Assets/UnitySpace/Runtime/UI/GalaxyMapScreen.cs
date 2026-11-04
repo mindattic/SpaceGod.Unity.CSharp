@@ -21,7 +21,7 @@ namespace Unity.SpaceGod.UI
     /// the wheel to zoom. The view fills the screen; its panels keep to the middle 21:9 band, so on a 32:9 screen they
     /// sit where the eye is rather than out at the far edges.
     /// </summary>
-    public sealed class GalaxyMapScreen
+    public sealed partial class GalaxyMapScreen // US-T47: partial (GalaxyMapScreen.Coop.cs)
     {
         readonly UnitySpaceApp app;
         GalaxyMapModel model;
@@ -678,6 +678,7 @@ namespace Unity.SpaceGod.UI
                 var mine = command.Player ?? app.Piloted.Ship?.Faction;
                 var holder = app.ActiveSystem.Holder;
                 commanded = mine != null && states.Contains(mine) ? mine : holder != null && states.Contains(holder) ? holder : states[0];
+                if (!CoopSpeaks(commanded)) // US-T47: the party's speaker goes through the frames
                 command.Player = commanded;
                 reportAt = -10f;
             }
@@ -708,12 +709,13 @@ namespace Unity.SpaceGod.UI
             y += 4;
 
             Heading(ref y, x, w, "PRIORITIES");
-            var d = command.Of(commanded);
+            var d = CoopDirectives(command, commanded); // US-T47: command.Of(commanded) in single-player
             if (GUI.Button(new Rect(x, y, w, 22), "Production: " + d.Production.Name, button))
+                if (!CoopSendsProduction(Next(ProductionFocus.All, d.Production))) // US-T47
                 command.SetProduction(commanded, Next(ProductionFocus.All, d.Production));
             y += 24;
             Line(ref y, x, w, d.Production.Description, Dim);
-            if (GUI.Button(new Rect(x, y, w, 22), "Build: " + d.Build.Name, button)) command.SetBuild(commanded, Next(BuildPlan.All, d.Build));
+            if (GUI.Button(new Rect(x, y, w, 22), "Build: " + d.Build.Name, button)) { if (!CoopSendsBuild(Next(BuildPlan.All, d.Build))) command.SetBuild(commanded, Next(BuildPlan.All, d.Build)); } // US-T47
             y += 24;
             Line(ref y, x, w, d.Build.Description, Dim);
             string research = d.Research == null ? "nothing"
@@ -723,6 +725,7 @@ namespace Unity.SpaceGod.UI
             {
                 var tracks = new List<ResearchTrack> { null };
                 foreach (var t in ResearchTrack.All) tracks.Add(t);
+                if (!CoopSendsResearch(tracks[(tracks.IndexOf(d.Research) + 1) % tracks.Count])) // US-T47
                 command.SetResearch(commanded, tracks[(tracks.IndexOf(d.Research) + 1) % tracks.Count]);
             }
             y += 24;
@@ -750,6 +753,7 @@ namespace Unity.SpaceGod.UI
             y += 28;
             if (GUI.Button(new Rect(x, y, w, 22), "CLEAR ORDERS (back to their own command's plans)", button))
             {
+                if (CoopSendsClear(from ?? app.ActiveSystem.World)) { reportAt = -10f; return; } // US-T47
                 int n = command.Clear(commanded, commandScope, commandGroup, from ?? app.ActiveSystem.World);
                 app.ShowToast(n == 0 ? "No group there was under orders" : n + (n == 1 ? " group stands down" : " groups stand down"));
                 reportAt = -10f;
@@ -783,6 +787,7 @@ namespace Unity.SpaceGod.UI
         {
             int i = states.IndexOf(commanded);
             commanded = states[((i < 0 ? 0 : i) + step + states.Count) % states.Count];
+            if (!CoopSpeaks(commanded)) // US-T47
             app.Galaxy.Polities.Command.Player = commanded;
             commandGroup = null;
             reportAt = -10f;
@@ -807,6 +812,7 @@ namespace Unity.SpaceGod.UI
             var pilot = app.Piloted.Ship;
             if (kind == ObjectiveKind.Escort && pilot != null && target.World.Fleet.IsPresent(pilot) && !app.Galaxy.Polities.Diplomacy.Hostile(commanded, pilot.Faction))
                 charge = pilot;
+            if (CoopSendsOrder(kind, target, from, charge)) { reportAt = -10f; return; } // US-T47
             string why = command.Order(commanded, commandScope, commandGroup, from ?? app.ActiveSystem.World, kind, target.World, jd, out int given, -1, charge);
             app.ShowToast(why ?? given + (given == 1 ? " group: " : " groups: ") + command.Describe(kind, target.World, -1, charge).ToLowerInvariant());
             reportAt = -10f;
@@ -838,6 +844,8 @@ namespace Unity.SpaceGod.UI
                 commanded = mine != null && states.Contains(mine) ? mine : holder != null && states.Contains(holder) ? holder : states[0];
                 envoyWith = null;
             }
+            CoopAdoptSpeaker(states); // US-T47: the party's speaker, which another player may have picked
+            if (!CoopSpeaks(commanded)) // US-T47
             command.Player = commanded;
             var inv = CultureInfo.InvariantCulture;
 
@@ -869,9 +877,11 @@ namespace Unity.SpaceGod.UI
                     Line(ref y, x, w, Capital(p.Describe()) + "  (" + Math.Max(0, left).ToString("0", inv) + " days to answer)", Accent);
                     float half = (w - 4) / 2;
                     if (GUI.Button(new Rect(x, y, half, 22), "ACCEPT", buttonOn))
+                        if (!CoopSendsAnswer(p, true)) // US-T47
                         app.ShowToast(statecraft.Answer(p, true, jd) ? "Agreed: " + p.Describe() : "That offer no longer stands");
                     if (GUI.Button(new Rect(x + half + 4, y, half, 22), "DECLINE", button))
                     {
+                        if (CoopSendsAnswer(p, false)) { y += 26; continue; } // US-T47
                         statecraft.Answer(p, false, jd);
                         app.ShowToast("Declined: " + p.Describe());
                     }
@@ -916,6 +926,7 @@ namespace Unity.SpaceGod.UI
                     Line(ref y, x, w, Capital(p.Describe()) + until, CourseColor);
                     if (GUI.Button(new Rect(x, y, w, 20), p.Kind == PactKind.Vassalage && p.A == commanded ? "THROW OFF THEIR RULE" : "BREAK IT", button))
                     {
+                        if (CoopSendsBreak(p)) { y += 24; continue; } // US-T47
                         statecraft.Break(p, commanded, jd);
                         app.ShowToast("You break the " + p.Describe() + ": they will not forget it");
                     }
@@ -931,8 +942,10 @@ namespace Unity.SpaceGod.UI
                     GUI.enabled = was && can;
                     if (GUI.Button(new Rect(x, y, w, 22), name, can && o.Read.Accepted ? buttonOn : button))
                     {
+                        if (!CoopSendsPropose(o, them)) { // US-T47
                         string why = statecraft.Propose(o.Deal, commanded, them, jd, out var answer, o.Amount);
                         app.ShowToast(why ?? (answer == null ? "Put to them: they will answer" : (answer.Accepted ? "Agreed: " : "Refused: ") + answer.Main));
+                        } // US-T47
                     }
                     GUI.enabled = was;
                     y += 24;
@@ -942,6 +955,7 @@ namespace Unity.SpaceGod.UI
 
                 double gift = Statecraft.SuggestedGift(commanded);
                 if (GUI.Button(new Rect(x, y, w, 22), "SEND A GIFT  " + gift.ToString("N0", inv) + " cr", button))
+                    if (!CoopSendsGift(them, gift)) // US-T47
                     app.ShowToast(statecraft.Gift(commanded, them, gift, jd) ?? "The " + them.Name + " receives your gift");
                 y += 26;
                 if (statecraft.Polities.Diplomacy.Get(commanded, them) != Relation.War)
@@ -952,8 +966,10 @@ namespace Unity.SpaceGod.UI
                         else
                         {
                             warArmed = false;
+                            if (!CoopSendsWar(them)) { // US-T47
                             string why = statecraft.DeclareWar(commanded, them, jd);
                             app.ShowToast(why ?? "The " + commanded.Name + " is at war with the " + them.Name);
+                            } // US-T47
                         }
                     }
                     y += 28;
@@ -972,6 +988,7 @@ namespace Unity.SpaceGod.UI
         {
             int i = states.IndexOf(commanded);
             commanded = states[((i < 0 ? 0 : i) + step + states.Count) % states.Count];
+            if (!CoopSpeaks(commanded)) // US-T47
             app.Galaxy.Polities.Command.Player = commanded;
             envoyWith = null;
             warArmed = false;
