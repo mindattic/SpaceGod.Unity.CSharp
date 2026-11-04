@@ -19,7 +19,9 @@
     powershell -ExecutionPolicy Bypass -File tools\coop-smoke.ps1
     powershell -ExecutionPolicy Bypass -File tools\coop-smoke.ps1 -PlayerDir C:\Apps\SpaceGod.Unity.CSharp
 #>
-param([string]$PlayerDir, [switch]$NoLock)
+param([string]$PlayerDir, [switch]$NoLock, [switch]$CaptureHost)
+# -CaptureHost (US-T72, docs/CAPTURE.md): the host also runs with "-capture video", so the smoke's join, resync, trade,
+# hail, party trip and load raise their capture events into its log and MindAttic.Capture records the session.
 
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot
@@ -57,6 +59,7 @@ try {
     $env:MINDATTIC_CLI_MUTED = '1'
     $window = @('-muted', '-screen-fullscreen', '0', '-screen-width', '960', '-screen-height', '540')
     $hostArgs = $window + @('-CoopHost', "-port=$port", '-SpaceGodCoopSmoke=host', '-logFile', "`"$hostPlayerLog`"", "`"-SpaceGodCoopLog=$hostLog`"")
+    if ($CaptureHost) { $hostArgs += @('-capture', 'video') }
     $hostP = Start-Process -FilePath $exe -PassThru -ArgumentList $hostArgs -WorkingDirectory (Split-Path $exe)
     $deadline = (Get-Date).AddMinutes(4)
     while (-not ((Test-Path -LiteralPath $hostLog) -and (Select-String -LiteralPath $hostLog -Pattern 'host app up' -Quiet))) {

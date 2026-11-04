@@ -308,16 +308,21 @@ Development launches are silent. `tools\launch.ps1` (every menu choice) and the 
 | `-continue` | resumes the latest save (quicksave, slot or autosave) instead of starting at today's date |
 | `-capture ...` | records the session through MindAttic.Capture (below); independent of `-demo` |
 
-Screenshots and video come from [MindAttic.Capture](https://github.com/mindattic/MindAttic.Capture) (needs ffmpeg on PATH). Capture is compiled into capture-enabled players only: build one with **MindAttic > Capture > Build Windows Player (Capture Enabled)** (`Builds/Capture/Unity.SpaceGod.exe`, or headless with `-executeMethod MindAttic.Capture.Unity.Editor.CaptureBuild.BuildWindows`). Capture is off unless `-capture` is on the command line.
+Screenshots and video come from [MindAttic.Capture](https://github.com/mindattic/MindAttic.Capture), embedded under `Packages/`. Video needs ffmpeg on PATH; it is not bundled. Every player `run.ps1` builds is capture-enabled (the `MINDATTIC_CAPTURE` define, US-T72), so the published copy and the Desktop shortcut's game honour `-capture`. Capture stays off unless `-capture` is on the command line. **[docs/CAPTURE.md](docs/CAPTURE.md)** is the full spec, shared by all three SpaceGod copies.
 
 | Command | Result |
 | --- | --- |
-| `Unity.SpaceGod.exe -demo -capture screen` | runs the tour once, saves a PNG at each stop and quits (how the images above were made) |
-| `Unity.SpaceGod.exe -demo -capture video screen 5` | the tour, filmed, with a PNG every 5 seconds as well as at each stop |
-| `Unity.SpaceGod.exe -capture video` | films the session from start to exit at native resolution |
-| `Unity.SpaceGod.exe -capture screen 5` | a PNG every 5 seconds until exit |
+| `SpaceGod.Unity.CSharp.exe -demo -capture screen` | runs the tour once, saves a PNG at each stop and quits (how the images above were made) |
+| `SpaceGod.Unity.CSharp.exe -demo -capture video screen 5` | the tour, filmed, with a PNG every 5 seconds as well as at each stop |
+| `SpaceGod.Unity.CSharp.exe -capture video` | films the session from start to exit at native resolution (`hq` for hardware HEVC, lighter on the drive) |
+| `SpaceGod.Unity.CSharp.exe -capture screen 5` | a PNG every 5 seconds until exit |
+| `... -capture video -capture-config my.json` | your own rules, used instead of the shipped `StreamingAssets/SpaceGod.capture.json` |
 
-Everything goes to `R:\MindAttic\Capture\Unity.SpaceGod\`; each tour screenshot's `.json` sidecar names the stop it shows (`"tag": "03-carrier-group"`). In the editor, the **MindAttic > Capture** menu records video or screenshots in Play Mode, and F12 takes a screenshot.
+- **Output:** everything goes to `R:\MindAttic\Capture\SpaceGod.Unity.CSharp\`. Each tour screenshot's `.json` sidecar names the stop it shows (`"tag": "03-carrier-group"`).
+- **Gameplay events:** about twenty, among them battle started, won and lost, ship destroyed, gate departure, system arrival, trade, hail, war, peace, save, load, time warp and the co-op ones. They are raised for the capture rules, become chapters in the video and are logged as `[capture] event ...` lines.
+- **Shipped rules:** replays of the last seconds when the helm hull dies or a battle ends, and a screenshot on arrival in a system or when a star is discovered.
+- **Hotkeys while capture runs:** **Alt+F9** screenshot, **Alt+F10** start or stop a recording, **Alt+F11** save the last 30 s.
+- **In the editor:** the **MindAttic > Capture** menu records video or screenshots in Play Mode.
 
 ## Controls
 

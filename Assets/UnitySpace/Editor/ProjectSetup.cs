@@ -115,6 +115,9 @@ namespace Unity.SpaceGod.EditorTools
                 locationPathName = path,
                 target = BuildTarget.StandaloneWindows64,
                 options = BuildOptions.None,
+                // US-T72 (docs/CAPTURE.md section 6): capture-enabled, so the published game honours -capture; a launch
+                // without -capture does nothing extra (no ffmpeg, no files).
+                extraScriptingDefines = new[] { "MINDATTIC_CAPTURE" },
             };
             var report = BuildPipeline.BuildPlayer(options);
             if (report.summary.result != BuildResult.Succeeded)
