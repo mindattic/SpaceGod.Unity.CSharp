@@ -1,20 +1,22 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
-    Shuts down any running Unity.SpaceGod, clears the build output, rebuilds the Windows player
+    SpaceGod.Unity.CSharp (the Unity C# candidate of SpaceGod): shuts down this copy's running game, clears the build output, rebuilds the Windows player
     from scratch (ProjectSetup.BuildWindows — this project has no separate dev/release split; its
     one build already uses BuildOptions.None), and publishes a standalone copy to
-    C:\Apps\Unity.SpaceGod\ — same process UnityEve/Automata/KdpPublish/IdiotProof use to always
+    C:\Apps\SpaceGod.Unity.CSharp\ — same process UnityEve/Automata/KdpPublish/IdiotProof use to always
     have a fresh, independent deployed copy instead of a possibly-stale one.
 
 .DESCRIPTION
-    1. Stops any running Unity.SpaceGod.exe process (dev copy or deployed copy).
+    1. Stops this copy's running Unity.SpaceGod.exe (its Builds\Windows or C:\Apps\SpaceGod.Unity.CSharp copy only;
+       the original Unity.SpaceGod repo's deployed game is left alone).
     2. Removes Builds\Windows — the build OUTPUT only, never Library\ (Unity's asset
        import / script-compile cache, which survives exactly as it does for a normal
        Editor rebuild) — so the player build below is never a stale incremental copy.
     3. Runs Unity in batch mode (-executeMethod Unity.SpaceGod.EditorTools.ProjectSetup.SetupAndBuild,
        requires the Editor closed) -> Builds\Windows\Unity.SpaceGod.exe.
-    4. Copies Builds\Windows\* -> C:\Apps\Unity.SpaceGod\.
+    4. Copies Builds\Windows\* -> C:\Apps\SpaceGod.Unity.CSharp\ and refreshes the Desktop shortcut
+       "SpaceGod – Unity C#" (it opens deploy.bat).
 
 .PARAMETER SkipHdrp
     Build only the URP player (the default), not the HDRP one beside it in HDRP\ that
@@ -26,51 +28,55 @@
 .PARAMETER Force
     Rebuild and republish even when the deployed commit already matches the player source (skips
     only the up-to-date check; it clears nothing more than a normal rebuild does). The repo-root
-    run.bat's "1) Deploy & Run" passes it, so that choice always republishes.
+    deploy.bat's "1) Deploy & Run" passes it, so that choice always republishes.
 
 .PARAMETER LauncherOnly
-    Refresh the Desktop shortcut (pointing at the repo-root run.bat, whose menu offers
+    Refresh the Desktop shortcut (pointing at the repo-root deploy.bat, whose menu offers
     1) Deploy & Run and 2) Run) and exit, without pulling, building or stopping anything.
+
+.PARAMETER BuildOnly
+    Only build the player into this checkout's Builds\Windows: no pull, no shortcut, nothing published or
+    launched (how a fresh clone proves it builds on its own).
 
 .NOTES
     This script never prompts, so agents and /deploy can run it unattended. The choice between
-    deploying and just running lives in the repo-root run.bat that the Desktop shortcut opens.
+    deploying and just running lives in the repo-root deploy.bat that the Desktop shortcut opens.
 
 .EXAMPLE
-    powershell -ExecutionPolicy Bypass -File tools\run.ps1
-    powershell -ExecutionPolicy Bypass -File tools\run.ps1 -Launch
-    powershell -ExecutionPolicy Bypass -File tools\run.ps1 -Force -Launch
-    powershell -ExecutionPolicy Bypass -File tools\run.ps1 -LauncherOnly
+    powershell -ExecutionPolicy Bypass -File run.ps1
+    powershell -ExecutionPolicy Bypass -File run.ps1 -Launch
+    powershell -ExecutionPolicy Bypass -File run.ps1 -Force -Launch
+    powershell -ExecutionPolicy Bypass -File run.ps1 -LauncherOnly
 #>
-param([switch]$Launch, [switch]$SkipHdrp, [switch]$Force, [switch]$LauncherOnly)
+param([switch]$Launch, [switch]$SkipHdrp, [switch]$Force, [switch]$LauncherOnly, [switch]$BuildOnly)
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-$repoDir  = Split-Path $PSScriptRoot   # tools\ -> the repo folder (Unity.SpaceGod\)
-$out      = 'C:\Apps\Unity.SpaceGod'
+$repoDir  = $PSScriptRoot   # the repo root (SpaceGod.Unity.CSharp\)
+$out      = 'C:\Apps\SpaceGod.Unity.CSharp'
 $exeName  = 'Unity.SpaceGod.exe'
 $buildDir = Join-Path $repoDir 'Builds\Windows'
-$runBat = Join-Path $repoDir 'run.bat'
+$deployBat = Join-Path $repoDir 'deploy.bat'
 $marker    = Join-Path $out '.deploy-commit'
 
-# Points at run.bat (not the exe directly), whose menu asks first: 1) Deploy & Run (pull latest,
+# Points at deploy.bat (not the exe directly), whose menu asks first: 1) Deploy & Run (pull latest,
 # rebuild, launch) or 2) Run (start the published copy as it is).
 # GetFolderPath, not $HOME\Desktop: OneDrive may have moved the Desktop folder.
 function Set-Shortcut([string]$exe) {
-    $shortcut = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Unity.SpaceGod.lnk'
+    $shortcut = Join-Path ([Environment]::GetFolderPath('Desktop')) 'SpaceGod – Unity C#.lnk'
     $link = (New-Object -ComObject WScript.Shell).CreateShortcut($shortcut)
-    $link.TargetPath       = $runBat
+    $link.TargetPath       = $deployBat
     $link.WorkingDirectory = $repoDir
     if (Test-Path $exe) { $link.IconLocation = "$exe,0" }
-    $link.Description      = 'Unity.SpaceGod: 1) Deploy & Run or 2) Run'
+    $link.Description      = 'SpaceGod – Unity C# (SpaceGod.Unity.CSharp): 1) Deploy & Run or 2) Run'
     $link.Save()
     Write-Host "    Shortcut -> $shortcut" -ForegroundColor Gray
 }
 
 # The shortcut is refreshed on every run, so an existing install picks up a changed launcher
 # without a republish; -LauncherOnly does just that and stops.
-Set-Shortcut (Join-Path $out $exeName)
+if (-not $BuildOnly) { Set-Shortcut (Join-Path $out $exeName) }
 if ($LauncherOnly) { exit 0 }
 
 # ── Pull latest, skip the rebuild entirely if nothing changed ──────────────
@@ -79,7 +85,9 @@ if ($LauncherOnly) { exit 0 }
 # keep docs/USER_STORIES.md modified, so throwing here left the game unopenable (U.SPC-T368). It then
 # deploys the commit already checked out.
 $dirty = git -C $repoDir status --porcelain | Where-Object { $_ -notmatch '^\?\? ' }
-if ($dirty) {
+if ($BuildOnly) {
+    Write-Host "  -BuildOnly: building the commit checked out, no pull." -ForegroundColor DarkGray
+} elseif ($dirty) {
     Write-Host "  $repoDir has uncommitted changes - not pulling; deploying the current commit." -ForegroundColor DarkYellow
 } else {
     git -C $repoDir pull --ff-only
@@ -90,7 +98,7 @@ $head = (git -C $repoDir rev-parse HEAD).Trim()
 # Up to date when nothing the player is built from (Assets, Packages, ProjectSettings) differs between
 # the deployed commit and HEAD: a docs- or tickets-only commit doesn't rebuild the game. -Force skips this.
 $upToDate = $false
-if (-not $Force -and (Test-Path (Join-Path $out $exeName)) -and (Test-Path $marker)) {
+if (-not $Force -and -not $BuildOnly -and (Test-Path (Join-Path $out $exeName)) -and (Test-Path $marker)) {
     $deployed = (Get-Content -LiteralPath $marker -Raw).Trim()
     git -C $repoDir diff --quiet $deployed $head -- Assets Packages ProjectSettings 2>$null
     $upToDate = $LASTEXITCODE -eq 0
@@ -114,7 +122,11 @@ if (Get-Process -Name Unity -ErrorAction SilentlyContinue | Where-Object { $_.Ma
 # ── Stop running instance ──────────────────────────────────────────────────
 Write-Host ''
 Write-Host '  Stopping running instance...' -ForegroundColor Yellow
-$procs = Get-Process 'Unity.SpaceGod' -ErrorAction SilentlyContinue
+# Only this copy's game (its build output or its published folder), never the original repo's deployed one.
+$procs = Get-Process 'Unity.SpaceGod' -ErrorAction SilentlyContinue | Where-Object {
+    $path = try { $_.Path } catch { $null }
+    $path -and ($path.StartsWith($out, [StringComparison]::OrdinalIgnoreCase) -or $path.StartsWith($buildDir, [StringComparison]::OrdinalIgnoreCase))
+}
 if ($procs) {
     $procs | Stop-Process -Force
     Write-Host "    Stopped ($(@($procs).Count) process(es))" -ForegroundColor DarkYellow
@@ -155,6 +167,11 @@ if (-not (Test-Path $builtExe)) {
     exit 1
 }
 
+if ($BuildOnly) {
+    Write-Host "  Built $builtExe (-BuildOnly: not published)." -ForegroundColor Green
+    exit 0
+}
+
 # ── Publish ─────────────────────────────────────────────────────────────────
 Write-Host ''
 Write-Host "  Publishing $builtExe" -ForegroundColor Cyan
@@ -183,7 +200,7 @@ Write-Host ''
 
 if ($Launch) {
     Write-Host '  Launching...' -ForegroundColor Cyan
-    Start-Process $exe
+    Start-Process -FilePath $exe -WorkingDirectory $out
 }
 
 # An explicit success code: nothing above sets $LASTEXITCODE (Unity runs via Start-Process), so a

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Deploys the current build to C:\Apps\Unity.SpaceGod, then offers Normal Play, Demo +
+  Deploys the current build to C:\Apps\SpaceGod.Unity.CSharp, then offers Normal Play, Demo +
   Capture, or Quit.
 .DESCRIPTION
   Every menu choice launches muted by default (-muted and MINDATTIC_CLI_MUTED=1), Unity.Shared's
@@ -10,7 +10,7 @@
 .PARAMETER Sound
   Launch with audio (no -muted, no MINDATTIC_CLI_MUTED).
 .NOTES
-  Always redeploys from source first (tools\run.ps1), so this never runs a stale build.
+  Always redeploys from source first (the repo-root run.ps1), so this never runs a stale build.
   Requires the Unity Editor closed for this project. Capture needs ffmpeg on PATH and the
   MindAttic.Capture library compiled in (see README.md).
 #>
@@ -18,13 +18,13 @@ param([switch]$Sound)
 
 $ErrorActionPreference = "Stop"
 
-& (Join-Path $PSScriptRoot "run.ps1")
+& (Join-Path (Split-Path $PSScriptRoot) "run.ps1")
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Deploy failed (exit $LASTEXITCODE); not launching." -ForegroundColor Red
     exit $LASTEXITCODE
 }
 
-$exe = "C:\Apps\Unity.SpaceGod\Unity.SpaceGod.exe"
+$exe = "C:\Apps\SpaceGod.Unity.CSharp\Unity.SpaceGod.exe"
 if (-not (Test-Path $exe)) {
     Write-Host "Deploy reported success but $exe is missing." -ForegroundColor Red
     exit 1
@@ -34,7 +34,7 @@ $muteArgs = @()
 if (-not $Sound) { $muteArgs = @("-muted") }
 
 Write-Host ""
-Write-Host "  Unity.SpaceGod" -ForegroundColor Cyan
+Write-Host "  SpaceGod - Unity C#" -ForegroundColor Cyan
 Write-Host "  [1] Normal Play"
 Write-Host "  [2] Demo + Capture"
 Write-Host "  [3] Quit"
