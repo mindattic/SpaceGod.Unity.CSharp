@@ -57,7 +57,7 @@ $repoDir  = $PSScriptRoot   # the repo root (SpaceGod.Unity.CSharp\)
 $out      = 'C:\Apps\SpaceGod.Unity.CSharp'
 $exeName  = 'SpaceGod.Unity.CSharp.exe'
 $buildDir = Join-Path $repoDir 'Builds\Windows'
-$deployBat = Join-Path $repoDir 'deploy.bat'
+$shortcutBat = Join-Path $repoDir 'run.bat'   # the Desktop shortcut's target: deploy, then run (US-T71)
 $marker    = Join-Path $out '.deploy-commit'
 
 # Points at deploy.bat (not the exe directly), whose menu asks first: 1) Deploy & Run (pull latest,
@@ -66,7 +66,7 @@ $marker    = Join-Path $out '.deploy-commit'
 function Set-Shortcut([string]$exe) {
     $shortcut = Join-Path ([Environment]::GetFolderPath('Desktop')) 'SpaceGod – Unity C#.lnk'
     $link = (New-Object -ComObject WScript.Shell).CreateShortcut($shortcut)
-    $link.TargetPath       = $deployBat
+    $link.TargetPath       = $shortcutBat
     $link.WorkingDirectory = $repoDir
     if (Test-Path $exe) { $link.IconLocation = "$exe,0" }
     $link.Description      = 'SpaceGod – Unity C# (SpaceGod.Unity.CSharp): 1) Deploy & Run or 2) Run'
