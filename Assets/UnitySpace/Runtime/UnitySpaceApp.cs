@@ -1630,6 +1630,11 @@ namespace Unity.SpaceGod
             World.Law?.UpdatePilot(null, 0, default, default, Clock.Jd);
             // Through the gate, the chase is left behind in the system the ship has left.
             World.Pursuit?.ReleaseAll(Clock.Jd);
+            // The far system's world holds the hull before Activate brings that system up to date (Galaxy.Promote steps
+            // its fleet): left unheld, the arrival GateTransit parked with no destination (DestinationBody -1, its phase
+            // already over) departs for body -1 there, and the catalogue lookup throws every frame from then on
+            // (found by the Unreal ports, Unreal.SpaceGod US-T58; docs/PARITY.md).
+            destination.World.PilotedShip = arrived;
             Activate(destination);
             // The far side streams in behind the gate's own flare and fold (U.SPC-T414).
             BeginHelmGateCover();

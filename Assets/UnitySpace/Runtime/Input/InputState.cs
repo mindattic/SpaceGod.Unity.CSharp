@@ -335,6 +335,9 @@ namespace Unity.SpaceGod.Input
             ToggleRunHot = false;
             ToggleRollPatches = false;
             NumberKey = -1;
+            // F12's edge was the one Poll sets that Reset left alone, so a suspended frame (Poll returns right after
+            // Reset) kept last frame's hail (found by the Unreal ports; docs/PARITY.md).
+            HailPolity = false;
         }
 
         static float Axis(UnityEngine.InputSystem.Controls.KeyControl positive, UnityEngine.InputSystem.Controls.KeyControl negative) =>
