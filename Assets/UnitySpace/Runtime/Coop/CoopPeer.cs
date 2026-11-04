@@ -146,9 +146,11 @@ namespace Unity.SpaceGod.Coop
         /// </summary>
         static void PrimeSaveStatics()
         {
-            // The root cause was the weak-table bug (FlightDecks.decks, ArmourAngling.Tables), fixed in this repo's own
-            // Core/Persistence/ObjectGraph.cs (docs/PARITY.md): its walk names only static design data, the same in every
-            // process whenever it runs, so there is nothing to prime here.
+            // US-T41: the same root cause as the original's weak-table bug (FlightDecks.decks, ArmourAngling.Tables), fixed for
+            // every process in Runtime/SaveCompat/SaveStatics.cs (and in this copy's Core/Persistence/ObjectGraph.cs);
+            // InitSaves builds it at start too, so this is a no-op there. (US-T70: as in the Unreal C# copy.)
+            try { UnrealSpaceGod.SaveCompat.SaveStatics.EnsureFixed(); }
+            catch (Exception e) { Warn("could not prime the save statics: " + e.Message); }
         }
 
         public static CoopPeer StartHost(string name)
