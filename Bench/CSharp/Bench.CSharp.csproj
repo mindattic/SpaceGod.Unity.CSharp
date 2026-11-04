@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Bench.CSharp: the headless runner over this repo's own C# Core (see ../README.md), compiled in place from
+       Assets/UnitySpace/Core through Lib/. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- net10.0 and net8.0, as in the Unreal repos' Bench (the same runner, the same digests). -->
+    <TargetFrameworks>net10.0;net8.0</TargetFrameworks>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>Bench.CSharp</AssemblyName>
+    <RootNamespace>Bench.CSharp</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <ServerGarbageCollector>false</ServerGarbageCollector>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <TieredPGO>true</TieredPGO>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="src/**/*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="Lib/SpaceGod.Core/SpaceGod.Core.csproj" />
+    <ProjectReference Include="Lib/Unity.Shared.Core/Unity.Shared.Core.csproj" />
+  </ItemGroup>
+</Project>

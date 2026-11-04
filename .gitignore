@@ -28,6 +28,7 @@ sysinfo.txt
 Tests/**/bin/
 Tests/**/obj/
 !Tests/**/*.csproj
+!Bench/**/*.csproj
 /artifacts/*
 !/artifacts/*.html
 

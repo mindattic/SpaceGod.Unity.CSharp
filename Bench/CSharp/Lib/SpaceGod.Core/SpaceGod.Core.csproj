@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The Bench's own build of this repo's engine-free Core: Assets/UnitySpace/Core/**/*.cs compiled UNCHANGED and IN
+       PLACE (netstandard2.1, C# 9, assembly Unity.SpaceGod.Core), exactly as Tests/UnitySpace.Core does. Kept separate
+       from Tests/ so the Bench never shares their build output. Nothing outside this repo is read. -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>Unity.SpaceGod.Core</AssemblyName>
+    <RootNamespace>Unity.SpaceGod.Core</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <IsPackable>false</IsPackable>
+    <NoWarn>$(NoWarn);CS0162;CS0168;CS0169;CS0219;CS0414;CS0649;CS0067;CS1998</NoWarn>
+    <RepoDir>$(MSBuildThisFileDirectory)../../../../</RepoDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(RepoDir)Assets/UnitySpace/Core/**/*.cs" LinkBase="Core" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Unity.Shared.Core/Unity.Shared.Core.csproj" />
+  </ItemGroup>
+</Project>
