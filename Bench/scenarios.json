@@ -1,0 +1,48 @@
+{
+  "startJd": 2461324.0,
+  "seed": 1977,
+  "scenarios": [
+    {
+      "name": "sol-idle",
+      "description": "The game as it opens: Sol in focus at the default warp (1 hour/s), nothing touched, 60 fps.",
+      "warp": 4,
+      "fps": 60,
+      "ticks": 3600
+    },
+    {
+      "name": "high-warp",
+      "description": "Maximum warp (1 year/s) at 60 fps for one simulated year: every system stepped coarse in big strides.",
+      "warp": 9,
+      "fps": 60,
+      "ticks": 100,
+      "simDays": 365.25
+    },
+    {
+      "name": "economy-year",
+      "description": "A year at 1 month/s and 60 fps (half a day a frame): Sol's economy, trade, mining, colonies, companies, law and war at full detail, the rest of the galaxy coarse.",
+      "warp": 8,
+      "fps": 60,
+      "ticks": 1000,
+      "simDays": 365.25
+    },
+    {
+      "name": "battle",
+      "description": "SceneTour's broadside showcase: two Sol battleships and a cruiser against the Reach off Uranus, watched (battle time drops the clock to real time), then sped back up to 1 min/s as a player would, to the end.",
+      "warp": 4,
+      "fps": 60,
+      "ticks": 20000,
+      "thenWarp": 2,
+      "until": "battle-over",
+      "setup": { "kind": "skirmish", "body": "Uranus", "aggressor": "Sol", "defender": "Reach", "classes": [ "Battleship", "Battleship", "Cruiser" ] }
+    },
+    {
+      "name": "galaxy-ftl",
+      "description": "The first civilian hull in Sol sent by its crew on the quickest gate course to Alpha Centauri and followed there (the view activates each system it comes out in), at 1 day/s.",
+      "warp": 6,
+      "fps": 60,
+      "ticks": 20000,
+      "until": "course-ended",
+      "setup": { "kind": "crew-course", "to": "Alpha Centauri", "military": false }
+    }
+  ]
+}
