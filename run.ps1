@@ -8,13 +8,13 @@
     have a fresh, independent deployed copy instead of a possibly-stale one.
 
 .DESCRIPTION
-    1. Stops this copy's running Unity.SpaceGod.exe (its Builds\Windows or C:\Apps\SpaceGod.Unity.CSharp copy only;
+    1. Stops this copy's running SpaceGod.Unity.CSharp.exe (its Builds\Windows or C:\Apps\SpaceGod.Unity.CSharp copy only;
        the original Unity.SpaceGod repo's deployed game is left alone).
     2. Removes Builds\Windows — the build OUTPUT only, never Library\ (Unity's asset
        import / script-compile cache, which survives exactly as it does for a normal
        Editor rebuild) — so the player build below is never a stale incremental copy.
     3. Runs Unity in batch mode (-executeMethod Unity.SpaceGod.EditorTools.ProjectSetup.SetupAndBuild,
-       requires the Editor closed) -> Builds\Windows\Unity.SpaceGod.exe.
+       requires the Editor closed) -> Builds\Windows\SpaceGod.Unity.CSharp.exe.
     4. Copies Builds\Windows\* -> C:\Apps\SpaceGod.Unity.CSharp\ and refreshes the Desktop shortcut
        "SpaceGod – Unity C#" (it opens deploy.bat).
 
@@ -23,7 +23,7 @@
     Settings > Render pipeline restarts into (U.SPC-T430). Faster; choosing HDRP then stays on URP.
 
 .PARAMETER Launch
-    After publishing, immediately run the deployed Unity.SpaceGod.exe.
+    After publishing, immediately run the deployed SpaceGod.Unity.CSharp.exe.
 
 .PARAMETER Force
     Rebuild and republish even when the deployed commit already matches the player source (skips
@@ -55,7 +55,7 @@ Set-StrictMode -Version Latest
 
 $repoDir  = $PSScriptRoot   # the repo root (SpaceGod.Unity.CSharp\)
 $out      = 'C:\Apps\SpaceGod.Unity.CSharp'
-$exeName  = 'Unity.SpaceGod.exe'
+$exeName  = 'SpaceGod.Unity.CSharp.exe'
 $buildDir = Join-Path $repoDir 'Builds\Windows'
 $deployBat = Join-Path $repoDir 'deploy.bat'
 $marker    = Join-Path $out '.deploy-commit'
@@ -123,7 +123,7 @@ if (Get-Process -Name Unity -ErrorAction SilentlyContinue | Where-Object { $_.Ma
 Write-Host ''
 Write-Host '  Stopping running instance...' -ForegroundColor Yellow
 # Only this copy's game (its build output or its published folder), never the original repo's deployed one.
-$procs = Get-Process 'Unity.SpaceGod' -ErrorAction SilentlyContinue | Where-Object {
+$procs = Get-Process 'SpaceGod.Unity.CSharp' -ErrorAction SilentlyContinue | Where-Object {
     $path = try { $_.Path } catch { $null }
     $path -and ($path.StartsWith($out, [StringComparison]::OrdinalIgnoreCase) -or $path.StartsWith($buildDir, [StringComparison]::OrdinalIgnoreCase))
 }

@@ -16,7 +16,7 @@ if ($prompt -notmatch '^/(deploy|run)(\s|$)') { Write-Output '{}'; exit 0 }
 $command = $Matches[1].ToLower()
 
 $repoRoot = if ($env:CLAUDE_PROJECT_DIR) { $env:CLAUDE_PROJECT_DIR } else { (Get-Location).Path }
-$exe = 'C:\Apps\SpaceGod.Unity.CSharp\Unity.SpaceGod.exe'
+$exe = 'C:\Apps\SpaceGod.Unity.CSharp\SpaceGod.Unity.CSharp.exe'
 
 function Block([string]$reason) {
   $json = @{ decision = 'block'; reason = $reason } | ConvertTo-Json -Compress

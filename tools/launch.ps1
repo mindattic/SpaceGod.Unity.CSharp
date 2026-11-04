@@ -24,7 +24,7 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-$exe = "C:\Apps\SpaceGod.Unity.CSharp\Unity.SpaceGod.exe"
+$exe = "C:\Apps\SpaceGod.Unity.CSharp\SpaceGod.Unity.CSharp.exe"
 if (-not (Test-Path $exe)) {
     Write-Host "Deploy reported success but $exe is missing." -ForegroundColor Red
     exit 1

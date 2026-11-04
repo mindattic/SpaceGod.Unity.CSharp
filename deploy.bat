@@ -7,7 +7,7 @@ rem "deploy.bat --deploy [flags]" skips the menu and deploys without -Force (the
 rem any other arguments pass through to run.ps1 when deploying.
 setlocal
 set "APPDIR=C:\Apps\SpaceGod.Unity.CSharp"
-set "EXE=%APPDIR%\Unity.SpaceGod.exe"
+set "EXE=%APPDIR%\SpaceGod.Unity.CSharp.exe"
 set "FORCE=-Force"
 set "ARGS=%*"
 if /i not "%~1"=="--deploy" goto menu

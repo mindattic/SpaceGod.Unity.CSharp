@@ -32,7 +32,7 @@ namespace Unity.SpaceGod.EditorTools
     {
         public const string ScenePath = "Assets/Scenes/UnitySpace.unity";
         public const string MenuScenePath = "Assets/Scenes/MainMenu.unity";
-        public const string PlayerPath = "Builds/Windows/Unity.SpaceGod.exe";
+        public const string PlayerPath = "Builds/Windows/SpaceGod.Unity.CSharp.exe"; // SpaceGod.Unity.CSharp: its own exe and productName (its own AppData profile and saves)
         public const string HdrpAssetPath = "Assets/UnitySpace/Settings/UnitySpace_HDRP.asset";
 
         /// <summary>The HDRP player, in the folder of the URP one (<see cref="RenderPipelineProfile.PlayerFolder"/>).</summary>
