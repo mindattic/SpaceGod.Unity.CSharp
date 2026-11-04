@@ -41,21 +41,40 @@ These show up as differences between the Unreal copies and this one, but they ar
 - **Unreal-specific bugs:** packaging and cooking (US-T61, US-T65, US-T66, US-T67) and the C++ build fixes (US-T49,
   US-T52, US-T53, US-T63).
 
-## Feature gap: co-op
+## Co-op (ported from the Unreal C# track)
 
-Both Unreal copies add one feature on top of the faithful port: **cooperative multiplayer** (Unreal.SpaceGod US-T39,
-US-T43, US-T47, US-T64, US-T67). It runs lockstep over the original's own Session layer. The host sends each frame's
-clock and commands, and every peer replays them and checks the world digests.
+Both Unreal copies add one feature to the faithful port, and this copy now has it too: **cooperative multiplayer**
+(Unreal.SpaceGod US-T39, US-T43, US-T47, US-T64, US-T67). It is host-authoritative lockstep over the original's own
+Session layer. Each host frame's clock and commands go out, every peer replays them, and the world digests are compared
+every 60 frames. A join, a load on the host or a desync sends the host's save to everyone.
 
-Its transport and client loop are Unreal's: replicated `ASpaceCoopLink` actors with RPCs, and the client stepping
-frames through UnityBridge. The hooks it adds to the original's Runtime (about 200 lines marked US-T39/T43/T47 across
-UnitySpaceApp, Hud, GalaxyMapScreen) are the same C# this copy runs.
+**Ported line for line** from Unreal.SpaceGod `CSharp/Script/.../Runtime`:
 
-**This copy does not have co-op yet.** Porting it means bringing over:
+- `Coop/` (CoopPeer, CoopWire, CoopInput, CoopSettings, CoopSmoke);
+- `UnitySpaceApp.Coop.cs`, `UI/Hud.Coop.cs` and `UI/GalaxyMapScreen.Coop.cs`;
+- every hook marked US-T39/T43/T47 in UnitySpaceApp (with Helm), Embodiment, Course, Ftl, Practice, Saves, Hud,
+  Hud.Trade, GalaxyMapScreen and GameLaunch.
 
-- Coop/ (CoopPeer, CoopWire, CoopInput, CoopSettings, CoopSmoke);
-- UnitySpaceApp.Coop.cs, Hud.Coop.cs, GalaxyMapScreen.Coop.cs, with the marked hooks;
-- a Unity transport, for example a TCP link in place of `ASpaceCoopLink`;
-- a client-side frame driver.
+The only changes are logging (`Debug.Log`), `Application.Quit`, and the save-statics prime, which is not needed here
+because the weak-table fix is in this Core.
 
-It is a feature addition, not a bug fix, so it was left for a decision. Until then, this copy is single-player only.
+**New here, in place of Unreal's networking:**
+
+- **`Coop/CoopNet.cs`:** one TCP connection per client (System.Net.Sockets). Each message is length-prefixed UTF-8. A
+  background reader feeds a main-thread queue, so CoopPeer runs on the main thread as it did under Unreal. This class
+  does what `ASpaceCoopLink` and the game mode's co-op hooks did there.
+- **The client's frame loop:** a client's `Update` runs only when CoopNet replays a host frame, on that frame's seconds
+  (`UnitySpaceApp.CoopNet.cs`), up to 8 frames per Unity frame. Under Unreal this was `UnityBridge.Tick(rec.Dt)`.
+- **Input:** `InputState` reads through the `IInputDevice` seam the Unreal ports added (`Input/InputDevice.cs`): the
+  Input System's keyboard and mouse, or the co-op smoke's script.
+- **Command line, as on the Unreal copies:**
+  - `-CoopHost` (with `-port=`, default 7777);
+  - `-CoopJoin=<address[:port]>`;
+  - `-CoopName=`;
+  - `-SpaceGodCoopLog=<file>`;
+  - `-SpaceGodCoopSmoke=host|client`.
+
+  The Unreal copies have no in-game menu entry for co-op either.
+- **Smoke test:** `tools/coop-smoke.ps1 [-PlayerDir <dir>]` runs a host and a client of a built player, both muted and
+  windowed, under the heavy-job lock. It applies `tools/play.ps1 -Mode coop-smoke`'s 15 checks, including that every
+  digest the host and client both logged is identical.
