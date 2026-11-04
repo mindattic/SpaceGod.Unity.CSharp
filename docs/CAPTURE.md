@@ -183,8 +183,9 @@ other peers.
 ## 7. Scripted check
 
 `tools/coop-smoke.ps1 -CaptureHost` (Unity) runs the co-op smoke with `-capture video` on the host, so one scripted
-session raises most of the catalogue: `coop-joined`, `coop-resync`, `trade`, `hail`, `system-arrival` (the party trip),
-`game-loaded`, `time-warp` and `coop-left`. The Unreal copies give their own smoke the same switch.
+session raises most of the catalogue on the host: `coop-joined`, `coop-resync`, `trade`, `system-arrival` (the party trip),
+`game-loaded`, `time-warp` and `coop-left`. The smoke's hail is the client's, so `hail` is raised on the client, not
+the host (only the peer whose player hailed raises it). The Unreal copies give their own smoke the same switch.
 
 ## 8. Proof
 
