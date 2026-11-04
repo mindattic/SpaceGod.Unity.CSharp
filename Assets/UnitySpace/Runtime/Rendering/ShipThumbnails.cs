@@ -27,9 +27,45 @@ namespace Unity.SpaceGod.Rendering
         {
             var key = (cls, ShipMeshFactory.Canon(faction));
             if (cache.TryGetValue(key, out var tex) && tex != null) return tex;
+            // US-T70: asked from OnGUI (the spawn screen's grid), which Unity 6 runs inside URP's camera stack, a manual
+            // Camera.Render throws ("UniversalCameraData has already been created") and left a blank snapshot cached for
+            // good. Such a request is rendered at the next LateUpdate instead, outside rendering; the grid draws the cell
+            // without its picture until then (one frame), as for a null snapshot.
+            if (Event.current != null)
+            {
+                Pending.Request(key, cls, faction);
+                return null;
+            }
             tex = Render(cls, faction);
             cache[key] = tex;
             return tex;
+        }
+
+        /// <summary>Renders the snapshots asked for during OnGUI at the next LateUpdate (US-T70).</summary>
+        sealed class Pending : MonoBehaviour
+        {
+            static Pending instance;
+            readonly Dictionary<(ShipClass, Faction), Faction> wanted = new Dictionary<(ShipClass, Faction), Faction>();
+
+            public static void Request((ShipClass, Faction) key, ShipClass cls, Faction faction)
+            {
+                if (instance == null)
+                {
+                    var go = new GameObject("ShipThumbnailQueue") { hideFlags = HideFlags.HideAndDontSave };
+                    Object.DontDestroyOnLoad(go);
+                    instance = go.AddComponent<Pending>();
+                }
+                instance.wanted[key] = faction;
+            }
+
+            void LateUpdate()
+            {
+                if (wanted.Count == 0) return;
+                var todo = new List<KeyValuePair<(ShipClass, Faction), Faction>>(wanted);
+                wanted.Clear();
+                foreach (var kv in todo)
+                    if (!cache.TryGetValue(kv.Key, out var tex) || tex == null) cache[kv.Key] = Render(kv.Key.Item1, kv.Value);
+            }
         }
 
         /// <summary>Drops every cached snapshot (e.g. if a faction's livery colour could change later).</summary>
