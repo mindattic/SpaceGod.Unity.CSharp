@@ -31,13 +31,12 @@ These show up as differences between the Unreal copies and this one, but they ar
   - display refresh rates through DXGI (US-T56).
 - **Scene loading:** `GameLaunch.SceneLoader`, `Bootstrap` and `SessionAudio.OnLoad` replace Unity's scene loads and
   `RuntimeInitializeOnLoadMethod` hooks.
-- **Cross-track saves:** `SaveWiring.RewireIfNeeded` (US-T41) rewires delegates on a save that the C++ Core wrote. A
-  Unity save always carries them.
 - **Unreal's own harness tools:**
   - the race probes and tour (US-T46);
   - the screenshot runs' fixed start (US-T45);
-  - FidelityShots, UiSmoke, ViewsSmoke, FeatureAudit/DisplayAudit/SettingsAudit (US-T40, US-T48, US-T50, US-T51,
-    US-T55, US-T56, US-T58).
+  - FidelityShots, UiSmoke, ViewsSmoke (US-T40). FeatureAudit / DisplayAudit / SettingsAudit (US-T48, US-T50, US-T51,
+    US-T55, US-T56, US-T58) **now run here too** (US-T70, below).
+- (Cross-track saves, `SaveCompat`, were left out by US-T69; **US-T70 brought them in**, below.)
 - **Unreal-specific bugs:** packaging and cooking (US-T61, US-T65, US-T66, US-T67) and the C++ build fixes (US-T49,
   US-T52, US-T53, US-T63).
 
@@ -55,8 +54,8 @@ every 60 frames. A join, a load on the host or a desync sends the host's save to
 - every hook marked US-T39/T43/T47 in UnitySpaceApp (with Helm), Embodiment, Course, Ftl, Practice, Saves, Hud,
   Hud.Trade, GalaxyMapScreen and GameLaunch.
 
-The only changes are logging (`Debug.Log`), `Application.Quit`, and the save-statics prime, which is not needed here
-because the weak-table fix is in this Core.
+The only changes are logging (`Debug.Log`) and `Application.Quit`. The save-statics prime calls `SaveStatics.EnsureFixed`
+as there since US-T70 (a no-op rebuild of the same table here, the weak-table fix being in this Core too).
 
 **New here, in place of Unreal's networking:**
 
@@ -78,3 +77,62 @@ because the weak-table fix is in this Core.
 - **Smoke test:** `tools/coop-smoke.ps1 [-PlayerDir <dir>]` runs a host and a client of a built player, both muted and
   windowed, under the heavy-job lock. It applies `tools/play.ps1 -Mode coop-smoke`'s 15 checks, including that every
   digest the host and client both logged is identical.
+## US-T70: functionally the same as SpaceGod.Unreal.CSharp
+
+Every file was compared against SpaceGod.Unreal.CSharp and each difference classified; SpaceGod.Unreal.CSharp's
+`docs/PARITY.md` has the full table, file by file. In short:
+
+- **Core:** this copy's `Assets/UnitySpace/Core` and that copy's `Vendor/Unity.SpaceGod/Core` are **byte-identical**
+  (184 files). Its `ObjectGraph.cs` was re-vendored from here.
+- **Shared core:** byte-identical too.
+- **Runtime:** 36 files identical. The other 32 differ only in engine plumbing (scene loads, the input device, the
+  logger, the camera facade, the capture tool). Every key of the `Key` enum maps to the same physical key there.
+- **Same code on both sides:** the HUD, every screen and menu, the views, the settings declarations and the co-op layer.
+- **(c) behaviour differences:** none in the game. The engine-level ones:
+  - **Render pipeline:** URP, or HDRP through a restart into the HDRP player. Unreal has one renderer and keeps the
+    choice without restarting.
+  - **Co-op transport:** TCP here, Unreal replication there.
+  - **Visual-only timers on a co-op client:** they run on the client's clock here and the host's seconds there.
+
+What US-T70 changed here:
+
+| Change | Files | Why |
+|---|---|---|
+| **Bug fix:** the pointer-over-UI test reads `Input.Device` instead of `Mouse.current` | `Runtime/UnitySpaceApp.cs` (`IsPointerOverUi`) | A scripted device (the co-op smoke's client, the audit) was tested against wherever the real mouse was. The Unreal copies read the device. |
+| **Saves from the C++ copy load here:** SaveCompat copied in unchanged, with its two hooks (`InitSaves`, `ApplyLoaded`) and the co-op prime | `Runtime/SaveCompat/SaveStatics.cs`, `SaveWiring.cs`; `UnitySpaceApp.Saves.cs`; `Coop/CoopPeer.cs` | The Unreal C# copy already read the C++ copy's saves (which carry no delegates); now both C# copies do. |
+| **The audit runs here:** `-SpaceGodSmoke` / `-SpaceGodAudit`, `tools/audit.ps1` | `Runtime/Audit/AuditRunner.cs`, `FeatureAudit.cs` (verbatim, but for the logger and `Time.timeScale`), `SettingsAudit.cs`, `DisplayAudit.cs`; `GameLaunch.SkipsMenu`; the app's dt hook (`CoopUnscaledDeltaTime`) | Lets the three copies run the same probes, with the same ids, and compare the logs row for row. |
+
+### How the audit runs under Unity
+
+The Unreal smoke is a straight-line script that steps the player loop itself (`Frames(n)`). Unity owns its loop, so
+`AuditRunner` runs the same script on a worker thread. The worker and Unity's main thread take turns, never at the same
+time.
+
+- **Frames:** each frame the script asks for is a real Unity frame at a fixed 1/60 s, the Unreal smoke's step
+  (`Time.captureDeltaTime` and the app's own dt).
+- **Engine calls:** what needs Unity's main thread runs there between frames (`AuditRunner.OnMain`): `Time.timeScale`,
+  the audio listener, settings that apply to the engine, and save and load.
+- **What the settings and display probes read here:**
+  - `audio.*` reads the audio listener.
+  - `render.*` reads the URP volume on the game's camera, where the Unreal copies read Unreal's post-process.
+  - `render.msaa` reads the camera's MSAA flag and the URP asset's 4 samples.
+  - `display.modes` is the Unreal probe's own code; `Screen` is Unity's own here.
+  - `display.exclusive-rate` reads the rate `DisplayOptions.Apply` would ask for from the original's `TryFindMode`.
+    Unity has no read-back of a requested rate, and applying exclusive fullscreen would switch the player's monitor.
+- **Mode:** it runs headless (`-batchmode -nographics`), as the Unreal audit runs `-nullrhi`.
+
+Result (2026-11-04, `tools/audit.ps1` on a player of `e5efa29`): **80 PASS, 0 FAIL, 5 INFO**, the Unreal C# copy's figures.
+The 5 INFO are the same keys, silent for a practice fighter on every copy: helm.ftl-engage, lane-reenter, phasers,
+run-hot and lock. Its first run here also found the thumbnail bug below.
+
+Commits (US-T70):
+
+| Commit | What |
+|---|---|
+| `ad968a1` | the pointer-over-UI test through `Input.Device` |
+| `86d6834` | **bug fix:** the spawn screen's ship thumbnails. Asked from `OnGUI`, which Unity 6 runs inside URP's camera stack, `ShipThumbnails`' manual `Camera.Render` threw ("UniversalCameraData has already been created") and cached a blank snapshot for good, so the Spawn & Pilot grid drew no hulls. It now renders at the next `LateUpdate`. The Unreal copies never had this: their engine draws the UI outside such a pass. |
+| `0093ab7` | SaveCompat: saves from the C++ copy load here |
+| `e5efa29` | the audit (`Runtime/Audit/`, `tools/audit.ps1`) |
+
+Proof after these: the Bench gives the 5 digests; the co-op smoke passes 15/15 checks with 55 of 55 digests identical
+and 0 exception lines; the player log of the audit run has no exceptions.
