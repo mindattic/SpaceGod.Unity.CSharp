@@ -168,6 +168,8 @@ namespace Unity.SpaceGod.Core
                 gone.Add(s);
                 s.Destroyed = true;
                 s.GateDeparted = true;
+                // Gone where its wing lay, not parked with no orbit of its own (an escort has none, US-T59).
+                if (s.Leader != null) s.TakeMotionOf(s.Leader);
                 s.Leader = null;
             }
             foreach (var s in gone) hired.Remove(s);
