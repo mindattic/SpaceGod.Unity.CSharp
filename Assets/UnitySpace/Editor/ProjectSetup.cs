@@ -109,6 +109,7 @@ namespace Unity.SpaceGod.EditorTools
         {
             if (!File.Exists(ScenePath)) CreateScene();
             if (!File.Exists(MenuScenePath)) CreateMainMenuScene();
+            SetIcon();
             var options = new BuildPlayerOptions
             {
                 scenes = new[] { MenuScenePath, ScenePath },
@@ -123,6 +124,19 @@ namespace Unity.SpaceGod.EditorTools
             if (report.summary.result != BuildResult.Succeeded)
                 throw new Exception("[Unity.SpaceGod] Build failed: " + report.summary.result + " (" + report.summary.totalErrors + " errors)");
             Debug.Log("[Unity.SpaceGod] Player built: " + path + " (" + report.summary.totalSize / (1024 * 1024) + " MB)");
+        }
+
+        /// <summary>
+        /// US-T75: the player exe's icon is Assets/icon.png (the ship, the Unity logo lower left, "C#" lower right), made
+        /// by tools/make-icon.ps1 together with Assets/icon.ico; Unity embeds the default icon into the exe it writes.
+        /// </summary>
+        static void SetIcon()
+        {
+            const string IconPath = "Assets/icon.png";
+            AssetDatabase.ImportAsset(IconPath);
+            var icon = AssetDatabase.LoadAssetAtPath<Texture2D>(IconPath);
+            if (icon == null) { Debug.LogWarning("[Unity.SpaceGod] No " + IconPath + ": the player keeps Unity's default icon."); return; }
+            PlayerSettings.SetIcons(UnityEditor.Build.NamedBuildTarget.Unknown, new[] { icon }, IconKind.Any);
         }
 
         /// <summary>
