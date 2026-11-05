@@ -57,11 +57,13 @@ $repoDir  = $PSScriptRoot   # the repo root (SpaceGod.Unity.CSharp\)
 $out      = 'C:\Apps\SpaceGod.Unity.CSharp'
 $exeName  = 'SpaceGod.Unity.CSharp.exe'
 $buildDir = Join-Path $repoDir 'Builds\Windows'
-$shortcutBat = Join-Path $repoDir 'run.bat'   # the Desktop shortcut's target: deploy, then run (US-T71)
+$shortcutBat = Join-Path $repoDir 'run.bat'   # the Desktop shortcut's target: 1) Deploy or 2) Deploy & Run (US-T73)
 $marker    = Join-Path $out '.deploy-commit'
+# US-T74: every launch records (docs/CAPTURE.md); hq, as lossless video falls behind on this machine.
+$captureArgs = @('-capture', 'video', 'hq')
 
-# Points at deploy.bat (not the exe directly), whose menu asks first: 1) Deploy & Run (pull latest,
-# rebuild, launch) or 2) Run (start the published copy as it is).
+# Points at run.bat (not the exe directly), whose menu asks first: 1) Deploy (pull latest, rebuild
+# when something changed) or 2) Deploy & Run (the same, then launch).
 # GetFolderPath, not $HOME\Desktop: OneDrive may have moved the Desktop folder.
 function Set-Shortcut([string]$exe) {
     $shortcut = Join-Path ([Environment]::GetFolderPath('Desktop')) 'SpaceGod – Unity C#.lnk'
@@ -69,7 +71,7 @@ function Set-Shortcut([string]$exe) {
     $link.TargetPath       = $shortcutBat
     $link.WorkingDirectory = $repoDir
     if (Test-Path $exe) { $link.IconLocation = "$exe,0" }
-    $link.Description      = 'SpaceGod – Unity C# (SpaceGod.Unity.CSharp): 1) Deploy & Run or 2) Run'
+    $link.Description      = 'SpaceGod – Unity C# (SpaceGod.Unity.CSharp): 1) Deploy or 2) Deploy & Run'
     $link.Save()
     Write-Host "    Shortcut -> $shortcut" -ForegroundColor Gray
 }
@@ -106,7 +108,7 @@ if (-not $Force -and -not $BuildOnly -and (Test-Path (Join-Path $out $exeName)) 
 }
 if ($upToDate) {
     Write-Host "  Already deployed at $head (no player source changed) - skipping rebuild." -ForegroundColor Green
-    if ($Launch) { Start-Process -FilePath (Join-Path $out $exeName) -WorkingDirectory $out }
+    if ($Launch) { Start-Process -FilePath (Join-Path $out $exeName) -WorkingDirectory $out -ArgumentList $captureArgs }
     exit 0
 }
 
@@ -200,7 +202,7 @@ Write-Host ''
 
 if ($Launch) {
     Write-Host '  Launching...' -ForegroundColor Cyan
-    Start-Process -FilePath $exe -WorkingDirectory $out
+    Start-Process -FilePath $exe -WorkingDirectory $out -ArgumentList $captureArgs
 }
 
 # An explicit success code: nothing above sets $LASTEXITCODE (Unity runs via Start-Process), so a

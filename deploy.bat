@@ -47,5 +47,5 @@ if not exist "%EXE%" (
     echo   SpaceGod - Unity C# is not deployed yet ^(%EXE% is missing^) - deploying first.
     goto deploy
 )
-start "" /d "%APPDIR%" "%EXE%"
+start "" /d "%APPDIR%" "%EXE%" -capture video hq
 exit /b 0
