@@ -25,6 +25,11 @@
 .PARAMETER Launch
     After publishing, immediately run the deployed SpaceGod.Unity.CSharp.exe.
 
+.PARAMETER Headless
+    Launch the deployed player with no window in the shared headless mode (implies -Launch): runs
+    ..\Unity.Shared\tools\Start-Headless.ps1 (--headless -batchmode -nographics), skips the main menu,
+    records no capture, and waits for the MINDATTIC_HEADLESS_READY log line (SPA-T2).
+
 .PARAMETER Force
     Rebuild and republish even when the deployed commit already matches the player source (skips
     only the up-to-date check; it clears nothing more than a normal rebuild does). The repo-root
@@ -48,7 +53,17 @@
     powershell -ExecutionPolicy Bypass -File run.ps1 -Force -Launch
     powershell -ExecutionPolicy Bypass -File run.ps1 -LauncherOnly
 #>
-param([switch]$Launch, [switch]$SkipHdrp, [switch]$Force, [switch]$LauncherOnly, [switch]$BuildOnly)
+param([switch]$Launch, [switch]$SkipHdrp, [switch]$Force, [switch]$LauncherOnly, [switch]$BuildOnly, [switch]$Headless)
+
+if ($Headless) { $Launch = $true }
+# Launches the published player: normally (with the capture args), or with no window via the shared launcher.
+function Start-Player([string]$exePath, [string]$workDir, [string[]]$playerArgs) {
+    if ($Headless) {
+        & (Join-Path $PSScriptRoot '..\Unity.Shared\tools\Start-Headless.ps1') -Exe $exePath -Wait
+    } else {
+        Start-Process -FilePath $exePath -WorkingDirectory $workDir -ArgumentList $playerArgs
+    }
+}
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -108,7 +123,7 @@ if (-not $Force -and -not $BuildOnly -and (Test-Path (Join-Path $out $exeName)) 
 }
 if ($upToDate) {
     Write-Host "  Already deployed at $head (no player source changed) - skipping rebuild." -ForegroundColor Green
-    if ($Launch) { Start-Process -FilePath (Join-Path $out $exeName) -WorkingDirectory $out -ArgumentList $captureArgs }
+    if ($Launch) { Start-Player (Join-Path $out $exeName) $out $captureArgs }
     exit 0
 }
 
@@ -202,7 +217,7 @@ Write-Host ''
 
 if ($Launch) {
     Write-Host '  Launching...' -ForegroundColor Cyan
-    Start-Process -FilePath $exe -WorkingDirectory $out -ArgumentList $captureArgs
+    Start-Player $exe $out $captureArgs
 }
 
 # An explicit success code: nothing above sets $LASTEXITCODE (Unity runs via Start-Process), so a

@@ -21,7 +21,8 @@ namespace Unity.SpaceGod
         public static bool SkipsMenu =>
             Bootstrap.HasCommandLineFlag("-demo") || Bootstrap.HasCommandLineFlag("-capture") || Bootstrap.HasCommandLineFlag("-continue")
             || Coop.CoopPeer.SkipsMenu // US-T39: a co-op client (and the smoke host) goes straight in
-            || Audit.AuditRunner.Requested; // US-T70: so does the scripted smoke/audit
+            || Audit.AuditRunner.Requested // US-T70: so does the scripted smoke/audit
+            || Unity.Shared.Core.Headless.IsActive; // SPA-T2: --headless has nobody to click the menu
 
         public static void NewGame() => Start(null);
 
